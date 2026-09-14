@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stayingfit — Project Quotation</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Georgia', serif;
+            background: #fafaf9;
+            color: #2c2c2c;
+            line-height: 1.7;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 60px;
+            border: 1px solid #e7e5e4;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.05);
+        }
+        header {
+            border-bottom: 2px solid #1f5233;
+            padding-bottom: 30px;
+            margin-bottom: 40px;
+        }
+        h1 {
+            font-size: 28px;
+            color: #1f5233;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        .subtitle {
+            font-size: 12px;
+            color: #78716b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+            font-size: 13px;
+        }
+        .meta-item strong { color: #1f5233; }
+        .meta-item { color: #78716b; }
+
+        h2 {
+            font-size: 16px;
+            color: #1f5233;
+            margin-top: 40px;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+            border-bottom: 1px solid #e7e5e4;
+            padding-bottom: 12px;
+        }
+
+        .section { margin-bottom: 32px; }
+
+        ul {
+            list-style: none;
+            margin: 16px 0;
+        }
+
+        li {
+            padding: 8px 0 8px 24px;
+            position: relative;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #1f5233;
+            font-weight: bold;
+        }
+
+        .pricing-box {
+            background: #fafaf9;
+            border-left: 4px solid #1f5233;
+            padding: 20px;
+            margin: 16px 0;
+            border-radius: 4px;
+        }
+
+        .price-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1f5233;
+            margin-bottom: 8px;
+        }
+
+        .price-amount {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f5233;
+            margin-bottom: 8px;
+        }
+
+        .price-details {
+            font-size: 12px;
+            color: #78716b;
+            line-height: 1.6;
+        }
+
+        table {
+            width: 100%;
+            margin: 20px 0;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #f5f5f4;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 12px;
+            color: #1f5233;
+            border-bottom: 2px solid #e7e5e4;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e7e5e4;
+            font-size: 13px;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 40px;
+        }
+
+        button {
+            padding: 14px 24px;
+            background: #1f5233;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover { background: #154329; }
+
+        button.secondary {
+            background: white;
+            color: #1f5233;
+            border: 1px solid #1f5233;
+        }
+
+        button.secondary:hover { background: #fafaf9; }
+
+        .footer {
+            margin-top: 60px;
+            padding-top: 30px;
+            border-top: 1px solid #e7e5e4;
+            font-size: 12px;
+            color: #78716b;
+            text-align: center;
+        }
+
+        .demo-link {
+            background: #f0fdf4;
+            border: 1px solid #86efac;
+            padding: 16px;
+            border-radius: 4px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .demo-link a {
+            color: #15803d;
+            text-decoration: none;
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .demo-link a:hover { text-decoration: underline; }
+
+        @media print {
+            body { padding: 0; }
+            .container { box-shadow: none; padding: 40px; }
+            button { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>STAYINGFIT</h1>
+            <p class="subtitle">Premium Nutrition Coaching Platform — Project Quotation</p>
+            <div class="meta">
+                <div class="meta-item"><strong>For:</strong> Pushpanjali Khaitan</div>
+                <div class="meta-item"><strong>Date:</strong> September 14, 2026</div>
+                <div class="meta-item"><strong>Valid Until:</strong> September 28, 2026</div>
+                <div class="meta-item"><strong>Prepared by:</strong> Shivank Jalan</div>
+            </div>
+        </header>
+
+        <div class="section">
+            <h2>Problem & Solution</h2>
+            <p><strong>Current State:</strong> WhatsApp-based client management (chaos, no tracking, manual follow-ups)</p>
+            <p style="margin-top: 12px;"><strong>Solution:</strong> Centralized Stayingfit app that automates diet scheduling, progress tracking, and client engagement for coaches managing 20–30+ clients daily.</p>
+        </div>
+
+        <div class="section">
+            <h2>What You'll Get</h2>
+            <ul>
+                <li>Diet cycle tracker (calendar view, 4-day plan scheduler, auto-reminders)</li>
+                <li>Client dashboard (weight, adherence, subscription status at a glance)</li>
+                <li>Automated reminders (diet due, renewal due, missing data)</li>
+                <li>Client progress portal (weight graphs, blood sugar tracking, health markers)</li>
+                <li>Blood test storage (HbA1c, cholesterol, lipids with trend visualization)</li>
+                <li>Subscription management + Stripe payment integration</li>
+                <li>Centralized messaging (replace WhatsApp groups)</li>
+                <li>iOS + Android apps (or web-only, your choice)</li>
+                <li>30 days post-launch support</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>Pricing Options</h2>
+
+            <div class="pricing-box">
+                <div class="price-title">Option A: Full Build (Recommended)</div>
+                <div class="price-amount">₹10,00,000</div>
+                <div class="price-details">
+                    Web app (coach dashboard + client portal) + iOS app + Android app<br/>
+                    Full backend, database, payment integration, notifications<br/>
+                    <strong>Timeline: 8 weeks</strong><br/>
+                    <strong>Payment: 50% upfront (₹5,00,000), 50% at launch (₹5,00,000)</strong>
+                </div>
+            </div>
+
+            <div class="pricing-box">
+                <div class="price-title">Option B: Web App Only (Phased)</div>
+                <div class="price-amount">₹6,00,000</div>
+                <div class="price-details">
+                    Web app only (coach + client portal)<br/>
+                    Can add iOS/Android in Phase 2 (4 weeks, ₹4,00,000)<br/>
+                    <strong>Timeline: 6 weeks</strong><br/>
+                    <strong>Payment: 50% upfront, 50% at launch</strong>
+                </div>
+            </div>
+
+            <div class="pricing-box">
+                <div class="price-title">Option C: MVP Lite (Budget)</div>
+                <div class="price-amount">₹3,50,000</div>
+                <div class="price-details">
+                    Web only, basic features (diet scheduler, client list, progress tracking)<br/>
+                    No payment integration (manual), single-user only<br/>
+                    <strong>Timeline: 3 weeks</strong><br/>
+                    <strong>Payment: 50% upfront, 50% at launch</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Why ₹10 Lakhs?</h2>
+            <p>This isn't just a website. It's a production-grade app managing real health data for real clients:</p>
+            <ul style="margin-top: 12px;">
+                <li>Secure user authentication (coach + client logins)</li>
+                <li>HIPAA-compliant database (health data privacy)</li>
+                <li>Payment processing integration (Stripe merchant account)</li>
+                <li>Scalable backend (handles 100+ clients, 20–30 daily active)</li>
+                <li>iOS + Android app deployment (App Store + Play Store submission)</li>
+                <li>Automated notification system (push, email, SMS)</li>
+                <li>Professional design (no AI slop, premium UX)</li>
+                <li>30 days support + bug fixes post-launch</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>Timeline</h2>
+            <table>
+                <tr>
+                    <th>Week</th>
+                    <th>Deliverable</th>
+                </tr>
+                <tr>
+                    <td>1–2</td>
+                    <td>Backend, database, authentication</td>
+                </tr>
+                <tr>
+                    <td>3–4</td>
+                    <td>Frontend (coach + client UI), payment integration</td>
+                </tr>
+                <tr>
+                    <td>5</td>
+                    <td>Testing, bug fixes, App Store/Play Store preparation</td>
+                </tr>
+                <tr>
+                    <td>6–8</td>
+                    <td>App review cycles, launch</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="demo-link">
+            <p style="margin-bottom: 8px;">👉 <strong>See the working demo:</strong></p>
+            <a href="file:///Users/shivankjalan/Desktop/Stayingfit_Premium.html" target="_blank">
+                file:///Users/shivankjalan/Desktop/Stayingfit_Premium.html
+            </a>
+        </div>
+
+        <div class="section">
+            <h2>Next Steps</h2>
+            <ol style="margin-left: 20px; font-size: 13px; line-height: 1.8;">
+                <li>Review this quotation + the demo</li>
+                <li>Choose Option A, B, or C</li>
+                <li>Send confirmation + deposit (50%)</li>
+                <li>We start immediately (Week 1 Monday)</li>
+                <li>Weekly progress updates every Friday</li>
+            </ol>
+        </div>
+
+        <div class="section">
+            <h2>Questions?</h2>
+            <p>Reply with:</p>
+            <ul>
+                <li>Which option works best for you?</li>
+                <li>Any feature changes/additions?</li>
+                <li>Timeline constraints?</li>
+                <li>Budget flexibility?</li>
+            </ul>
+        </div>
+
+        <div class="button-group">
+            <button onclick="window.print()">Print / Save as PDF</button>
+            <button class="secondary" onclick="copyDemoLink()">Copy Demo Link</button>
+        </div>
+
+        <div class="footer">
+            <p>This quotation is valid until September 28, 2026. Price locked for 8 weeks from project start.</p>
+            <p style="margin-top: 12px;">Prepared by Shivank Jalan | Stayingfit</p>
+        </div>
+    </div>
+
+    <script>
+        function copyDemoLink() {
+            const link = "file:///Users/shivankjalan/Desktop/Stayingfit_Premium.html";
+            navigator.clipboard.writeText(link);
+            alert("Demo link copied! Paste into browser address bar.");
+        }
+    </script>
+</body>
+</html>
