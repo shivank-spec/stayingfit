@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stayingfit — Premium Health Coaching</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            color: #1f2937;
+            line-height: 1.6;
+        }
+
+        /* HEADER & NAV */
+        header {
+            background: linear-gradient(135deg, #1f5233 0%, #2c5282 100%);
+            color: white;
+            padding: 24px 0;
+            box-shadow: 0 4px 12px rgba(31, 82, 51, 0.15);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+        .header-content { display: flex; justify-content: space-between; align-items: center; }
+        .brand { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; }
+        .nav-tabs { display: flex; gap: 12px; align-items: center; }
+        .nav-tabs button {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .nav-tabs button:hover { background: rgba(255,255,255,0.25); transform: translateY(-2px); }
+        .nav-tabs button.active { background: white; color: #1f5233; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .logout-btn { background: rgba(255, 100, 100, 0.3); }
+        .logout-btn:hover { background: rgba(255, 100, 100, 0.5); }
+
+        /* MAIN LAYOUT */
+        main { padding: 40px 0; min-height: calc(100vh - 100px); }
+        .dashboard { display: none; animation: fadeIn 0.4s ease; }
+        .dashboard.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* CARDS */
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border: 1px solid #e5e7eb;
+            transition: all 0.3s ease;
+        }
+        .card:hover { box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+        .card h2 { font-size: 20px; font-weight: 700; margin-bottom: 20px; color: #1f2937; display: flex; align-items: center; gap: 10px; }
+        .card h3 { font-size: 14px; font-weight: 600; color: #6b7280; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* FORMS */
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #374151; }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s ease;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #2c5282;
+            box-shadow: 0 0 0 3px rgba(44, 82, 130, 0.1);
+        }
+        .form-group textarea { resize: vertical; min-height: 100px; }
+
+        /* BUTTONS */
+        .btn {
+            display: inline-block;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        .btn-primary { background: linear-gradient(135deg, #1f5233 0%, #164028 100%); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(31, 82, 51, 0.3); }
+        .btn-secondary { background: #2c5282; color: white; }
+        .btn-secondary:hover { background: #1e3a5f; transform: translateY(-2px); }
+        .btn-full { width: 100%; }
+
+        /* GRIDS */
+        .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+        .grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+
+        /* STATS BOXES */
+        .stat-box {
+            background: linear-gradient(135deg, #1f5233 0%, #2c5282 100%);
+            color: white;
+            padding: 28px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(31, 82, 51, 0.2);
+        }
+        .stat-box .number { font-size: 40px; font-weight: 700; line-height: 1; margin-bottom: 8px; }
+        .stat-box .label { font-size: 13px; opacity: 0.95; font-weight: 500; }
+
+        /* WATER TRACKER */
+        .water-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+        .water-glass {
+            aspect-ratio: 1;
+            background: #f0f9ff;
+            border: 2px solid #2c5282;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .water-glass:hover { transform: scale(1.08); box-shadow: 0 4px 12px rgba(44, 82, 130, 0.2); }
+        .water-glass.filled {
+            background: linear-gradient(135deg, #2c5282 0%, #1e3a5f 100%);
+            color: white;
+            border-color: #1e3a5f;
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(44, 82, 130, 0.3);
+        }
+        .water-glass.filled::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: #fff;
+            animation: wave 0.6s ease;
+        }
+        @keyframes wave { 0% { height: 0; } 50% { height: 8px; } 100% { height: 3px; } }
+        .water-status { text-align: center; font-size: 16px; font-weight: 600; color: #2c5282; margin-top: 12px; }
+
+        /* ACHIEVEMENTS */
+        .achievement-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 16px; }
+        .achievement {
+            background: #fef3c7;
+            border: 2px solid #fbbf24;
+            border-radius: 10px;
+            padding: 16px 12px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: #92400e;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .achievement:hover { transform: translateY(-4px); box-shadow: 0 6px 12px rgba(251, 191, 36, 0.2); }
+        .achievement.unlocked {
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            color: white;
+            border-color: #f59e0b;
+            box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
+        }
+        .achievement-icon { font-size: 32px; margin-bottom: 6px; display: block; }
+
+        /* CLIENT CARDS */
+        .client-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 18px;
+            transition: all 0.3s ease;
+        }
+        .client-card:hover { box-shadow: 0 8px 16px rgba(0,0,0,0.1); transform: translateY(-4px); }
+        .client-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+        .client-name { font-weight: 700; font-size: 16px; color: #1f2937; }
+        .client-tier {
+            font-size: 11px;
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+        .client-stat { font-size: 13px; color: #6b7280; margin-top: 8px; line-height: 1.5; }
+        .client-stat strong { color: #1f5233; font-weight: 700; }
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #1f5233 0%, #2c5282 100%);
+            transition: width 0.4s ease;
+        }
+
+        /* CHARTS */
+        canvas { max-height: 300px; }
+
+        /* LEADERBOARD */
+        .leaderboard { margin-top: 20px; }
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 13px;
+        }
+        .leaderboard-rank {
+            font-weight: 700;
+            color: #1f5233;
+            width: 30px;
+            text-align: center;
+        }
+        .leaderboard-name {
+            flex: 1;
+            font-weight: 500;
+            margin-left: 10px;
+        }
+        .leaderboard-stat { color: #6b7280; }
+
+        /* ANIMATIONS */
+        @keyframes pop { 0% { transform: scale(0) rotate(0deg); } 50% { transform: scale(1.3) rotate(5deg); } 100% { transform: scale(1) rotate(0deg); } }
+        @keyframes confetti { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(-80px) rotate(360deg); opacity: 0; } }
+        .star-pop { animation: pop 0.6s cubic-bezier(0.36, 0, 0.66, -0.56); }
+        .achievement-pop { animation: pop 0.7s cubic-bezier(0.36, 0, 0.66, -0.56); }
+
+        /* RESPONSIVE */
+        @media (max-width: 1024px) {
+            .grid-3, .grid-2 { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 640px) {
+            header { padding: 16px 0; }
+            .header-content { flex-direction: column; gap: 12px; }
+            .nav-tabs { width: 100%; flex-wrap: wrap; }
+            .card { padding: 18px; }
+            .water-grid { grid-template-columns: repeat(5, 1fr); }
+        }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="brand">🏋️ Stayingfit</div>
+                <div class="nav-tabs">
+                    <button class="nav-btn active" onclick="switchDash('client')">Client Dashboard</button>
+                    <button class="nav-btn" onclick="switchDash('coach')">Coach Dashboard</button>
+                    <button class="logout-btn" onclick="logout()">Logout</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <!-- CLIENT DASHBOARD -->
+            <div id="client" class="dashboard active">
+                <div class="grid-2">
+                    <!-- WEIGHT LOGGING -->
+                    <div class="card">
+                        <h2>⚖️ Weight Tracking</h2>
+                        <div class="form-group">
+                            <label>Today's Weight (kg)</label>
+                            <input type="number" id="weight" step="0.1" placeholder="e.g., 65.5">
+                            <button class="btn btn-primary btn-full" onclick="logWeight()" style="margin-top: 12px;">
+                                Log Weight & Earn Stars ✨
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- WATER TRACKER -->
+                    <div class="card">
+                        <h2>💧 Water Intake Challenge</h2>
+                        <div class="water-grid" id="waterGrid"></div>
+                        <div class="water-status" id="waterStatus">0 / 10 glasses</div>
+                        <p style="font-size: 12px; color: #6b7280; margin-top: 10px; text-align: center;">Tap each glass as you drink</p>
+                    </div>
+
+                    <!-- EXERCISE LOGGING -->
+                    <div class="card">
+                        <h2>🏃 Exercise Log</h2>
+                        <div class="form-group">
+                            <label>Activity Type</label>
+                            <select id="activity">
+                                <option>Running</option>
+                                <option>Walking</option>
+                                <option>Gym</option>
+                                <option>Cycling</option>
+                                <option>Yoga</option>
+                                <option>Swimming</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Duration (minutes)</label>
+                            <input type="number" id="duration" placeholder="e.g., 30">
+                            <button class="btn btn-primary btn-full" onclick="logExercise()" style="margin-top: 12px;">Log Exercise 💪</button>
+                        </div>
+                    </div>
+
+                    <!-- AI CALORIE TRACKER -->
+                    <div class="card">
+                        <h2>🍽️ Food & Calories (AI Powered)</h2>
+                        <div class="form-group">
+                            <label>What did you eat?</label>
+                            <input type="text" id="foodName" placeholder="e.g., Chicken biryani">
+                            <button class="btn btn-secondary btn-full" onclick="searchCalories()" style="margin-top: 12px;">🤖 Lookup Calories</button>
+                        </div>
+                        <div id="calorieResult" class="hidden" style="background: #f0f9ff; padding: 12px; border-radius: 8px; margin: 12px 0; border-left: 4px solid #2c5282;">
+                            <div style="font-size: 13px; color: #1e40af;"><strong id="calorieText"></strong></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Calories</label>
+                            <input type="number" id="calories" placeholder="e.g., 450">
+                            <button class="btn btn-primary btn-full" onclick="logCalories()" style="margin-top: 12px;">Log Meal 🍴</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STATS -->
+                <div class="grid-3">
+                    <div class="stat-box">
+                        <div class="number" id="starCount">0</div>
+                        <div class="label">Stars Earned ⭐</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="number" id="streakCount">0</div>
+                        <div class="label">Day Streak 🔥</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="number" id="weightLoss">0</div>
+                        <div class="label">kg Lost 📉</div>
+                    </div>
+                </div>
+
+                <!-- ACHIEVEMENTS -->
+                <div class="card">
+                    <h2>🏆 Achievements Unlocked</h2>
+                    <div class="achievement-grid" id="achievementList"></div>
+                </div>
+
+                <!-- WEIGHT CHART -->
+                <div class="card">
+                    <h2>📈 Weight Progress</h2>
+                    <canvas id="weightChart" height="80"></canvas>
+                </div>
+            </div>
+
+            <!-- COACH DASHBOARD -->
+            <div id="coach" class="dashboard">
+                <div class="grid-2">
+                    <!-- ADD CLIENT -->
+                    <div class="card">
+                        <h2>➕ Add New Client</h2>
+                        <div class="form-group">
+                            <label>Client Name</label>
+                            <input type="text" id="cName" placeholder="e.g., Aisha Gupta">
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" id="cEmail" placeholder="aisha@gmail.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Subscription Tier</label>
+                            <select id="cTier">
+                                <option value="weekly">Weekly Check-in (₹5K)</option>
+                                <option value="daily">Hand-Holding (₹10K)</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary btn-full" onclick="addClient()">Add Client</button>
+                    </div>
+
+                    <!-- DIET PLAN -->
+                    <div class="card">
+                        <h2>🍽️ 4-Day Diet Cycle</h2>
+                        <div class="form-group">
+                            <label>Select Client</label>
+                            <select id="dietClient"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Diet Plan</label>
+                            <textarea id="dietText" placeholder="Day 1: Breakfast..., Lunch..., Dinner...&#10;Day 2: ..."></textarea>
+                            <button class="btn btn-primary btn-full" onclick="saveDiet()" style="margin-top: 12px;">Save Diet Plan</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CLIENT GRID -->
+                <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 16px; color: #1f2937;">📊 All Clients</h3>
+                <div class="grid-auto" id="clientGrid"></div>
+
+                <!-- BLAST MESSAGE -->
+                <div class="card">
+                    <h2>📢 Blast Message to All</h2>
+                    <div class="form-group">
+                        <label>Message</label>
+                        <textarea id="blastMsg" placeholder="Great work everyone! Keep logging your meals..."></textarea>
+                        <button class="btn btn-secondary btn-full" onclick="sendBlast()" style="margin-top: 12px;">Send to All Clients</button>
+                    </div>
+                </div>
+
+                <!-- ANALYTICS -->
+                <div class="grid-3">
+                    <div class="stat-box">
+                        <div class="number" id="totalClients">2</div>
+                        <div class="label">Total Clients</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="number" id="avgLoss">2.5</div>
+                        <div class="label">Avg Weight Loss (kg)</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="number" id="engagement">85%</div>
+                        <div class="label">Engagement Rate</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Mock data
+        let mockData = {
+            clients: [
+                { id: 'c1', name: 'Aisha Gupta', email: 'aisha@gmail.com', tier: 'daily', weight: 68, weightHistory: [70, 69.5, 68.5, 68], stars: 15, streak: 7, achievements: ['7-day-streak', 'water-master'] },
+                { id: 'c2', name: 'Raj Patel', email: 'raj@gmail.com', tier: 'weekly', weight: 82, weightHistory: [85, 84, 83, 82], stars: 8, streak: 3, achievements: [] }
+            ],
+            achievements: {
+                '7-day-streak': { name: '7-Day Streak', icon: '🔥', unlocked: true },
+                'water-master': { name: 'Water Master', icon: '💧', unlocked: true },
+                'meal-tracker': { name: 'Meal Tracker', icon: '📸', unlocked: false },
+                'consistency-king': { name: 'Consistency King', icon: '👑', unlocked: false }
+            }
+        };
+
+        let waterGlasses = 0;
+        let stars = 0;
+        let streak = 0;
+        let weightHistory = [];
+
+        // Initialize water tracker
+        function initWater() {
+            const grid = document.getElementById('waterGrid');
+            grid.innerHTML = '';
+            for (let i = 0; i < 10; i++) {
+                const glass = document.createElement('div');
+                glass.className = 'water-glass';
+                glass.textContent = '💧';
+                glass.onclick = () => toggleWater(i);
+                grid.appendChild(glass);
+            }
+        }
+
+        function toggleWater(idx) {
+            const glass = document.getElementById('waterGrid').children[idx];
+            if (glass.classList.contains('filled')) {
+                waterGlasses--;
+                glass.classList.remove('filled');
+            } else {
+                waterGlasses++;
+                glass.classList.add('filled');
+            }
+            document.getElementById('waterStatus').textContent = `${waterGlasses} / 10 glasses`;
+            if (waterGlasses === 10) awardStar('Water Master Challenge 💧 Complete!');
+        }
+
+        function logWeight() {
+            const w = parseFloat(document.getElementById('weight').value);
+            if (!w) { alert('Enter weight'); return; }
+            weightHistory.push(w);
+            awardStar('Weight logged! 📉');
+            document.getElementById('weight').value = '';
+            updateChart();
+        }
+
+        function logExercise() {
+            const dur = parseInt(document.getElementById('duration').value);
+            if (!dur) { alert('Enter duration'); return; }
+            awardStar('Exercise logged! 💪');
+            document.getElementById('duration').value = '';
+        }
+
+        function searchCalories() {
+            const food = document.getElementById('foodName').value.toLowerCase();
+            if (!food) { alert('Enter food name'); return; }
+            const db = { 'chicken rice': 450, 'roti curry': 350, 'biryani': 600, 'salad': 150 };
+            const cal = db[food] || 400;
+            document.getElementById('calorieResult').classList.remove('hidden');
+            document.getElementById('calorieText').textContent = `${food}: ${cal} calories`;
+            document.getElementById('calories').value = cal;
+        }
+
+        function logCalories() {
+            const cal = parseInt(document.getElementById('calories').value);
+            if (!cal) { alert('Enter calories'); return; }
+            awardStar(`Logged ${cal} calories 🍽️`);
+            document.getElementById('foodName').value = '';
+            document.getElementById('calories').value = '';
+            document.getElementById('calorieResult').classList.add('hidden');
+        }
+
+        function awardStar(reason) {
+            stars++;
+            const el = document.getElementById('starCount');
+            el.textContent = stars;
+            el.classList.add('star-pop');
+            setTimeout(() => el.classList.remove('star-pop'), 600);
+            console.log(`⭐ ${reason}`);
+        }
+
+        // Coach functions
+        function addClient() {
+            const name = document.getElementById('cName').value;
+            const email = document.getElementById('cEmail').value;
+            if (!name || !email) { alert('Fill fields'); return; }
+            mockData.clients.push({ id: `c${Date.now()}`, name, email, tier: document.getElementById('cTier').value, weight: 70, stars: 0, streak: 0, achievements: [], weightHistory: [] });
+            document.getElementById('cName').value = '';
+            document.getElementById('cEmail').value = '';
+            renderClients();
+            alert('Client added!');
+        }
+
+        function renderClients() {
+            const grid = document.getElementById('clientGrid');
+            grid.innerHTML = '';
+            mockData.clients.forEach(c => {
+                const card = document.createElement('div');
+                card.className = 'client-card';
+                card.innerHTML = `
+                    <div class="client-header">
+                        <div class="client-name">${c.name}</div>
+                        <div class="client-tier">${c.tier.toUpperCase()}</div>
+                    </div>
+                    <div class="client-stat">Weight: <strong>${c.weight} kg</strong></div>
+                    <div class="client-stat">Stars: <strong>${c.stars || 0}</strong></div>
+                    <div class="client-stat">Streak: <strong>${c.streak || 0} days 🔥</strong></div>
+                    <div class="progress-bar"><div class="progress-fill" style="width: ${((c.stars || 0) / 30) * 100}%"></div></div>
+                `;
+                grid.appendChild(card);
+            });
+            // Update select
+            const sel = document.getElementById('dietClient');
+            sel.innerHTML = '';
+            mockData.clients.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name;
+                sel.appendChild(opt);
+            });
+            document.getElementById('totalClients').textContent = mockData.clients.length;
+        }
+
+        function saveDiet() {
+            const diet = document.getElementById('dietText').value;
+            if (!diet) { alert('Enter diet plan'); return; }
+            alert('Diet plan saved!');
+            document.getElementById('dietText').value = '';
+        }
+
+        function sendBlast() {
+            const msg = document.getElementById('blastMsg').value;
+            if (!msg) { alert('Enter message'); return; }
+            alert(`Sent to ${mockData.clients.length} clients!`);
+            document.getElementById('blastMsg').value = '';
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('weightChart');
+            if (!ctx) return;
+            if (ctx.chart) ctx.chart.destroy();
+            ctx.chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Today'],
+                    datasets: [{
+                        label: 'Weight (kg)',
+                        data: [70, 69.5, 69, 68.5, 68],
+                        borderColor: '#1f5233',
+                        backgroundColor: 'rgba(31, 82, 51, 0.08)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 6,
+                        pointBackgroundColor: '#1f5233',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: true } } }
+            });
+        }
+
+        function switchDash(tab) {
+            document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
+            document.getElementById(tab).classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            if (tab === 'coach') renderClients();
+        }
+
+        function logout() {
+            if (confirm('Logout?')) alert('Logged out!');
+        }
+
+        // Init
+        initWater();
+        renderClients();
+        // Render achievements
+        const achList = document.getElementById('achievementList');
+        Object.keys(mockData.achievements).forEach(k => {
+            const ach = mockData.achievements[k];
+            const div = document.createElement('div');
+            div.className = `achievement ${ach.unlocked ? 'unlocked' : ''}`;
+            div.innerHTML = `<span class="achievement-icon">${ach.icon}</span>${ach.name}`;
+            achList.appendChild(div);
+        });
+        setTimeout(() => updateChart(), 300);
+    </script>
+</body>
+</html>

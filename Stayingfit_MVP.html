@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stayingfit — Gamified Nutrition Coaching</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-storage.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f9fafb; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+        /* Navigation */
+        .navbar { background: linear-gradient(135deg, #1f5233 0%, #2c5282 100%); color: white; padding: 20px 0; margin-bottom: 30px; }
+        .navbar .brand { font-size: 28px; font-weight: 700; margin-bottom: 15px; }
+        .nav-tabs { display: flex; gap: 15px; flex-wrap: wrap; }
+        .nav-tabs button { background: rgba(255,255,255,0.2); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
+        .nav-tabs button.active { background: white; color: #1f5233; font-weight: 600; }
+        .nav-tabs button:hover { background: rgba(255,255,255,0.3); }
+
+        /* Dashboard sections */
+        .dashboard { display: none; }
+        .dashboard.active { display: block; }
+
+        /* Cards */
+        .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .card h2 { font-size: 18px; margin-bottom: 15px; color: #1f1f1f; }
+        .card h3 { font-size: 14px; color: #666; margin-bottom: 10px; font-weight: 600; }
+
+        /* Forms */
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #333; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+        button.btn { background: #1f5233; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        button.btn:hover { background: #164028; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(31,82,51,0.2); }
+        button.btn-secondary { background: #2c5282; }
+        button.btn-secondary:hover { background: #1e3a5f; }
+
+        /* Grid layouts */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+
+        /* Stats */
+        .stat-box { background: linear-gradient(135deg, #1f5233 0%, #2c5282 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; }
+        .stat-box .number { font-size: 32px; font-weight: 700; }
+        .stat-box .label { font-size: 13px; opacity: 0.9; margin-top: 5px; }
+
+        /* Water tracker */
+        .water-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
+        .water-glass { width: 100%; aspect-ratio: 1; background: #e8f4f8; border: 2px solid #2c5282; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 24px; transition: all 0.2s; }
+        .water-glass.filled { background: #2c5282; color: white; transform: scale(1.05); }
+        .water-glass:hover { transform: scale(1.1); }
+
+        /* Stars & achievements */
+        .stars-display { font-size: 28px; margin-bottom: 10px; }
+        .achievements { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; margin-top: 15px; }
+        .achievement { background: #fff9e6; border: 2px solid #ffc107; border-radius: 8px; padding: 12px; text-align: center; font-size: 12px; }
+        .achievement.unlocked { background: #ffc107; color: white; font-weight: 600; }
+        .achievement-icon { font-size: 28px; margin-bottom: 5px; }
+
+        /* Client grid */
+        .client-card { background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 15px; }
+        .client-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; }
+        .client-name { font-weight: 600; font-size: 15px; }
+        .client-stat { font-size: 13px; color: #666; margin-top: 8px; }
+        .client-stat strong { color: #1f5233; }
+        .progress-bar { width: 100%; height: 6px; background: #e5e7eb; border-radius: 3px; margin-top: 5px; overflow: hidden; }
+        .progress-fill { height: 100%; background: #1f5233; transition: width 0.3s; }
+
+        /* Photos gallery */
+        .photo-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 10px; margin-top: 10px; }
+        .photo-thumb { width: 80px; height: 80px; background: #f3f4f6; border-radius: 6px; object-fit: cover; cursor: pointer; }
+
+        /* Animations */
+        @keyframes pop { 0% { transform: scale(0); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+        @keyframes shine { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+        .star-pop { animation: pop 0.5s ease-out; }
+        .achievement-pop { animation: pop 0.6s ease-out; }
+        .shimmer { animation: shine 2s infinite; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+            .water-container { grid-template-columns: repeat(5, 1fr); }
+        }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="container">
+            <div class="brand">🏋️ Stayingfit</div>
+            <div class="nav-tabs">
+                <button class="nav-btn active" onclick="switchDashboard('client')">Client Dashboard</button>
+                <button class="nav-btn" onclick="switchDashboard('coach')">Coach Dashboard</button>
+                <button onclick="logout()" style="background: rgba(255,100,100,0.3); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- CLIENT DASHBOARD -->
+        <div id="client" class="dashboard active">
+            <div class="grid-2">
+                <!-- Daily Logging -->
+                <div class="card">
+                    <h2>📊 Daily Logging</h2>
+                    <div class="form-group">
+                        <label>Weight (kg)</label>
+                        <input type="number" id="weight" step="0.1" placeholder="e.g., 65.5">
+                        <button class="btn" onclick="logWeight()" style="margin-top: 10px; width: 100%;">Log Weight</button>
+                    </div>
+                </div>
+
+                <!-- Water Tracker -->
+                <div class="card">
+                    <h2>💧 Water Intake (10 glasses)</h2>
+                    <div id="waterContainer" class="water-container"></div>
+                    <div id="waterStatus" style="text-align: center; font-weight: 600; color: #2c5282; margin-top: 10px;">0/10 glasses</div>
+                </div>
+
+                <!-- Exercise Logging -->
+                <div class="card">
+                    <h2>🏃 Exercise</h2>
+                    <div class="form-group">
+                        <label>Activity Type</label>
+                        <select id="activityType">
+                            <option>Running</option>
+                            <option>Walking</option>
+                            <option>Gym</option>
+                            <option>Cycling</option>
+                            <option>Yoga</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Duration (mins)</label>
+                        <input type="number" id="duration" placeholder="e.g., 30">
+                    </div>
+                    <button class="btn" onclick="logExercise()" style="width: 100%;">Log Exercise</button>
+                </div>
+
+                <!-- Calorie Tracker -->
+                <div class="card">
+                    <h2>🍔 Food & Calories</h2>
+                    <div class="form-group">
+                        <label>Food Name</label>
+                        <input type="text" id="foodName" placeholder="e.g., Chicken Rice">
+                    </div>
+                    <div id="calorieResult" style="background: #f0f9ff; padding: 15px; border-radius: 6px; margin: 10px 0; display: none;">
+                        <div style="font-size: 14px; color: #666;"><strong id="calorieText"></strong></div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="searchCalories()" style="width: 100%; margin-bottom: 10px;">Lookup Calories (AI)</button>
+                    <div class="form-group">
+                        <label>Manual Calories</label>
+                        <input type="number" id="manualCalories" placeholder="e.g., 450">
+                    </div>
+                    <button class="btn" onclick="logCalories()" style="width: 100%;">Log Meal</button>
+                </div>
+            </div>
+
+            <!-- Stats Section -->
+            <div class="grid-3">
+                <div class="stat-box">
+                    <div class="number" id="starCount">0</div>
+                    <div class="label">Stars Earned</div>
+                </div>
+                <div class="stat-box">
+                    <div class="number" id="streakCount">0</div>
+                    <div class="label">Day Streak 🔥</div>
+                </div>
+                <div class="stat-box">
+                    <div class="number" id="weightLoss">0</div>
+                    <div class="label">kg Lost</div>
+                </div>
+            </div>
+
+            <!-- Achievements -->
+            <div class="card">
+                <h2>🏆 Achievements</h2>
+                <div class="achievements" id="achievementsList"></div>
+            </div>
+
+            <!-- Weight Progress Graph -->
+            <div class="card">
+                <h2>📈 Weight Progress</h2>
+                <canvas id="weightChart" height="80"></canvas>
+            </div>
+        </div>
+
+        <!-- COACH DASHBOARD -->
+        <div id="coach" class="dashboard">
+            <div class="card">
+                <h2>👥 Client Management</h2>
+                <div class="form-group">
+                    <label>Add New Client</label>
+                    <input type="text" id="clientName" placeholder="Client name">
+                    <input type="email" id="clientEmail" placeholder="Email" style="margin-top: 10px;">
+                    <select id="clientTier" style="margin-top: 10px;">
+                        <option value="weekly">Weekly Check-in (₹5K)</option>
+                        <option value="daily">Hand-Holding (₹10K)</option>
+                    </select>
+                    <button class="btn" onclick="addClient()" style="width: 100%; margin-top: 10px;">Add Client</button>
+                </div>
+            </div>
+
+            <div class="grid-3" id="clientGrid"></div>
+
+            <!-- Diet Cycle Manager -->
+            <div class="card">
+                <h2>🍽️ Diet Cycle Manager</h2>
+                <div class="form-group">
+                    <label>Select Client</label>
+                    <select id="dietClientSelect"></select>
+                </div>
+                <div class="form-group">
+                    <label>Diet Plan (4-day cycle)</label>
+                    <textarea id="dietPlan" placeholder="Day 1: Breakfast..., Lunch..., Dinner...&#10;Day 2: ..."></textarea>
+                </div>
+                <button class="btn" onclick="saveDiet()" style="width: 100%;">Save Diet Plan</button>
+            </div>
+
+            <!-- Blast Messaging -->
+            <div class="card">
+                <h2>📢 Blast Message</h2>
+                <div class="form-group">
+                    <label>Message to All Clients</label>
+                    <textarea id="blastMsg" placeholder="Great work everyone! Keep logging your meals..."></textarea>
+                </div>
+                <button class="btn btn-secondary" onclick="sendBlastMessage()" style="width: 100%;">Send Message</button>
+            </div>
+
+            <!-- Analytics -->
+            <div class="grid-2">
+                <div class="stat-box">
+                    <div class="number" id="totalClients">0</div>
+                    <div class="label">Total Clients</div>
+                </div>
+                <div class="stat-box">
+                    <div class="number" id="avgWeightLoss">0</div>
+                    <div class="label">Avg Weight Loss (kg)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyBblahblahblah", // Placeholder - user to set real key
+            projectId: "stayingfit-app",
+            storageBucket: "stayingfit-app.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef1234567890"
+        };
+
+        // Mock Firebase for now - replace with real config
+        let mockData = {
+            currentUser: { id: 'client1', name: 'Aisha Gupta', role: 'client' },
+            clients: [
+                { id: 'c1', name: 'Aisha Gupta', email: 'aisha@gmail.com', tier: 'daily', weight: 68, weightHistory: [70, 69.5, 68.5, 68], stars: 15, streak: 7, achievements: ['7-day-streak', 'water-master'], logs: [] },
+                { id: 'c2', name: 'Raj Patel', email: 'raj@gmail.com', tier: 'weekly', weight: 82, weightHistory: [85, 84, 83, 82], stars: 8, streak: 3, achievements: [], logs: [] }
+            ],
+            achievements: {
+                '7-day-streak': { name: '7-Day Streak', icon: '🔥', unlocked: false },
+                'water-master': { name: 'Water Master', icon: '💧', unlocked: false },
+                'meal-tracker': { name: 'Meal Tracker', icon: '📸', unlocked: false },
+                'consistency-king': { name: 'Consistency King', icon: '👑', unlocked: false }
+            }
+        };
+
+        let waterGlasses = 0;
+        let dailyCalories = 0;
+        let weightLogs = [];
+
+        // Initialize water tracker
+        function initWater() {
+            const container = document.getElementById('waterContainer');
+            container.innerHTML = '';
+            for (let i = 0; i < 10; i++) {
+                const glass = document.createElement('div');
+                glass.className = 'water-glass';
+                glass.textContent = '💧';
+                glass.id = `glass-${i}`;
+                glass.onclick = () => toggleWater(i);
+                container.appendChild(glass);
+            }
+        }
+
+        function toggleWater(index) {
+            if (document.getElementById(`glass-${index}`).classList.contains('filled')) {
+                waterGlasses--;
+                document.getElementById(`glass-${index}`).classList.remove('filled');
+            } else {
+                waterGlasses++;
+                document.getElementById(`glass-${index}`).classList.add('filled');
+            }
+            document.getElementById('waterStatus').textContent = `${waterGlasses}/10 glasses`;
+            if (waterGlasses === 10) { awardStar('Water Master!'); }
+        }
+
+        function logWeight() {
+            const weight = parseFloat(document.getElementById('weight').value);
+            if (!weight) { alert('Enter weight'); return; }
+
+            weightLogs.push(weight);
+            const lastWeight = mockData.currentUser.weight || 70;
+            if (weight < lastWeight) { awardStar('Weight Loss! 🎉'); }
+
+            document.getElementById('weight').value = '';
+            updateChart();
+            alert('Weight logged!');
+        }
+
+        function logExercise() {
+            const activity = document.getElementById('activityType').value;
+            const duration = parseInt(document.getElementById('duration').value);
+            if (!duration) { alert('Enter duration'); return; }
+            awardStar(`${activity} logged! 💪`);
+            document.getElementById('duration').value = '';
+        }
+
+        function searchCalories() {
+            const food = document.getElementById('foodName').value;
+            if (!food) { alert('Enter food name'); return; }
+            // Mock AI calorie lookup
+            const mockCalories = { 'chicken rice': 450, 'roti curry': 350, 'biryani': 600, 'salad': 150 };
+            const cal = mockCalories[food.toLowerCase()] || 400;
+            document.getElementById('calorieResult').style.display = 'block';
+            document.getElementById('calorieText').textContent = `${food}: ${cal} calories`;
+            document.getElementById('manualCalories').value = cal;
+        }
+
+        function logCalories() {
+            const cal = parseInt(document.getElementById('manualCalories').value);
+            if (!cal) { alert('Enter calories'); return; }
+            dailyCalories += cal;
+            alert(`Logged ${cal} calories. Daily total: ${dailyCalories}`);
+            document.getElementById('foodName').value = '';
+            document.getElementById('manualCalories').value = '';
+            document.getElementById('calorieResult').style.display = 'none';
+        }
+
+        function awardStar(reason) {
+            const count = parseInt(document.getElementById('starCount').textContent) || 0;
+            document.getElementById('starCount').textContent = count + 1;
+            // Animate
+            const el = document.getElementById('starCount');
+            el.classList.add('star-pop');
+            setTimeout(() => el.classList.remove('star-pop'), 500);
+            console.log(`⭐ ${reason}`);
+        }
+
+        // Coach functions
+        function addClient() {
+            const name = document.getElementById('clientName').value;
+            const email = document.getElementById('clientEmail').value;
+            if (!name || !email) { alert('Fill all fields'); return; }
+            mockData.clients.push({ id: `c${Date.now()}`, name, email, tier: document.getElementById('clientTier').value, weight: 70, stars: 0, streak: 0, achievements: [], logs: [] });
+            document.getElementById('clientName').value = '';
+            document.getElementById('clientEmail').value = '';
+            renderClientGrid();
+            alert('Client added!');
+        }
+
+        function renderClientGrid() {
+            const grid = document.getElementById('clientGrid');
+            grid.innerHTML = '';
+            mockData.clients.forEach(client => {
+                const card = document.createElement('div');
+                card.className = 'client-card';
+                card.innerHTML = `
+                    <div class="client-header">
+                        <div class="client-name">${client.name}</div>
+                        <div style="font-size: 12px; background: #e8f4f8; padding: 4px 8px; border-radius: 4px;">${client.tier}</div>
+                    </div>
+                    <div class="client-stat">Weight: <strong>${client.weight} kg</strong></div>
+                    <div class="client-stat">Stars: <strong>${client.stars || 0}</strong></div>
+                    <div class="client-stat">Streak: <strong>${client.streak || 0} days</strong> 🔥</div>
+                    <div class="progress-bar"><div class="progress-fill" style="width: ${(client.stars || 0) * 10}%"></div></div>
+                `;
+                grid.appendChild(card);
+            });
+            // Update diet select
+            const select = document.getElementById('dietClientSelect');
+            select.innerHTML = '';
+            mockData.clients.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name;
+                select.appendChild(opt);
+            });
+            document.getElementById('totalClients').textContent = mockData.clients.length;
+        }
+
+        function saveDiet() {
+            const diet = document.getElementById('dietPlan').value;
+            if (!diet) { alert('Enter diet plan'); return; }
+            alert('Diet plan saved!');
+            document.getElementById('dietPlan').value = '';
+        }
+
+        function sendBlastMessage() {
+            const msg = document.getElementById('blastMsg').value;
+            if (!msg) { alert('Enter message'); return; }
+            alert(`Message sent to ${mockData.clients.length} clients!`);
+            document.getElementById('blastMsg').value = '';
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('weightChart');
+            if (!ctx) return;
+            if (ctx.chart) ctx.chart.destroy();
+            ctx.chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Today'],
+                    datasets: [{
+                        label: 'Weight (kg)',
+                        data: [70, 69.5, 69, 68.5, 68],
+                        borderColor: '#1f5233',
+                        backgroundColor: 'rgba(31, 82, 51, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: true } } }
+            });
+        }
+
+        function switchDashboard(tab) {
+            document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
+            document.getElementById(tab).classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            if (tab === 'coach') { renderClientGrid(); }
+        }
+
+        function logout() {
+            if (confirm('Logout?')) { alert('Logged out'); }
+        }
+
+        // Initialize
+        initWater();
+        renderClientGrid();
+        setTimeout(() => updateChart(), 500);
+
+        // Render achievements
+        const list = document.getElementById('achievementsList');
+        Object.keys(mockData.achievements).forEach(key => {
+            const ach = mockData.achievements[key];
+            const div = document.createElement('div');
+            div.className = 'achievement';
+            div.innerHTML = `<div class="achievement-icon">${ach.icon}</div>${ach.name}`;
+            list.appendChild(div);
+        });
+    </script>
+</body>
+</html>
