@@ -3,14 +3,34 @@ body{margin:0}
 [hidden]{display:none!important}
 code{font-family:var(--mono);font-size:.92em}
 
-/* gates */
-.gate{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:calc(24px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px));background:linear-gradient(135deg,#0f2a1b 0%,#1f5233 45%,#2c5282 100%)}
-.gate-card{width:min(440px,100%);background:var(--card);color:var(--ink);border-radius:14px;padding:30px 28px;display:flex;flex-direction:column;gap:18px;box-shadow:0 30px 60px -30px rgba(0,0,0,.5);animation:rise .4s cubic-bezier(.2,.8,.2,1) both}
-.gate-card h1{font-size:30px;line-height:1.1}
+/* sign-in and the other before-you-start screens: plain, calm, phone-first */
+.gate{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:calc(24px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px));background:var(--bg)}
+.gate-card{width:min(400px,100%);background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:32px 28px;display:flex;flex-direction:column;gap:20px;box-shadow:0 1px 2px rgba(22,32,26,.04),0 12px 32px -16px rgba(22,32,26,.18)}
+.gate-card h1{font:700 24px/1.2 var(--sans);letter-spacing:-.01em}
 .gate-card p{color:var(--muted);line-height:1.5}
 .gate-card form{display:flex;flex-direction:column;gap:16px}
-.gate-card .btn{width:100%;height:48px;font-size:15px}
-.gate-brand{display:flex;align-items:center;gap:10px;font:600 20px var(--display);color:var(--forest)}
+.gate-card .btn{width:100%;height:50px;font-size:16px;border-radius:10px}
+.gate-card .input{height:50px;border-radius:10px;font-size:16px}
+.gate-card .pw-eye{border-radius:7px}
+.auth-brand{display:flex;align-items:center;gap:10px;font:600 19px var(--display);color:var(--ink)}
+.auth-logo{width:36px;height:36px;border-radius:10px;background:#1f5233;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.auth-sub{margin-top:4px;font-size:15px}
+.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;background:var(--soft);border-radius:12px}
+.seg button{appearance:none;border:0;background:transparent;color:var(--muted);font:600 14px var(--sans);height:40px;border-radius:9px;cursor:pointer;transition:background .15s,color .15s}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(22,32,26,.12)}
+.seg button:focus-visible{outline:2px solid var(--forest);outline-offset:1px}
+.auth-foot{margin:0;font-size:13px}
+.auth-foot a{color:var(--muted);text-underline-offset:3px}
+@media (max-width:520px){
+  .gate{background:var(--card);justify-content:flex-start;padding-top:calc(48px + env(safe-area-inset-top,0px))}
+  .gate-card{border:0;box-shadow:none;border-radius:0;padding:8px 8px 0;width:100%}
+  .auth-foot{margin-top:auto}
+}
+/* 16px inputs stop phones zooming in when a field is tapped */
+@media (max-width:760px){.input,.select,.ta{font-size:16px}}
+
+/* gates */
 .lbl{font-size:13px;font-weight:600}
 .linkbtn{appearance:none;background:none;border:0;padding:6px 0;color:var(--slate);font-weight:600;font-size:14px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;align-self:flex-start}
 .linkbtn.back{text-decoration:none;color:var(--muted);margin-bottom:-6px}
@@ -23,14 +43,6 @@ code{font-family:var(--mono);font-size:.92em}
 .pw-eye:hover{background:var(--line)}
 
 /* landing: who's signing in */
-.land{color:#fff;position:relative;overflow:hidden}
-.land-in{width:min(980px,100%);display:flex;flex-direction:column;gap:18px;position:relative}
-.land-brand{display:flex;align-items:center;gap:12px;font:600 26px var(--display)}
-.land h1{font:600 clamp(36px,6vw,60px)/1.02 var(--display);letter-spacing:-.02em;color:#fff}
-.land-sub{font-size:17px;color:rgba(255,255,255,.82);margin-bottom:10px}
-.roles.three{grid-template-columns:repeat(3,minmax(0,1fr))}
-.roles.three .role{min-height:200px;padding:24px}
-@media (max-width:760px){.roles.three{grid-template-columns:1fr}.roles.three .role{min-height:0;flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:18px}.roles.three .role .d{flex-basis:100%}.roles.three .role .go{display:none}}
 
 /* nav */
 .nav-who{font-size:13px;color:rgba(255,255,255,.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;text-align:right}
@@ -110,3 +122,23 @@ tr.click:hover td{background:var(--soft)}
 
 /* card icon tiles inserted by app.js */
 .card-h .head{display:flex;gap:12px;align-items:center;min-width:0}
+
+/* WhatsApp hand-off button */
+.ghost.wa{height:44px;display:inline-flex;align-items:center;text-decoration:none;border-color:#1f7a4a;color:#1f7a4a}
+.ghost.wa:hover{background:color-mix(in srgb,#1f7a4a 10%,transparent)}
+
+/* first sign-in question */
+.fl-ask{display:flex;flex-direction:column;gap:18px}
+.fl-q{font:600 18px/1.35 var(--sans);color:var(--ink)!important}
+.fl-choice{display:flex;flex-direction:column;gap:10px}
+.gate-card .ghost.big{height:50px;font-size:16px;border-radius:10px;width:100%}
+.gate-card strong{color:var(--ink)}
+.modal{max-height:calc(100dvh - 32px);overflow-y:auto}
+
+/* sign-in header: logo, name, one line */
+.auth-head{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:4px 0 6px}
+.auth-logo.lg{width:64px;height:64px;border-radius:18px;margin-bottom:8px;box-shadow:0 8px 20px -10px rgba(31,82,51,.7)}
+.gate-card h1.auth-name{font:600 28px/1.1 var(--display);letter-spacing:-.01em}
+.auth-head .auth-sub{margin:0}
+.auth-help{text-align:center}
+@media (max-width:520px){.gate.auth{padding-top:calc(72px + env(safe-area-inset-top,0px))}}
