@@ -21,7 +21,7 @@
 <!-- ============ before sign-in ============ -->
 <main class="gate" id="gate-setup" hidden>
   <div class="gate-card">
-    <div class="gate-brand"><svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#d99a1c;stroke-width:2.4" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg>Stayingfit</div>
+    <div class="auth-brand"><span class="auth-logo"><svg width="22" height="22" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#fff;stroke-width:2.6" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg></span>Stayingfit</div>
     <h1>Almost ready</h1>
     <p>Add the Supabase project URL and publishable key to <code>config.js</code>, then reload. The README walks through it step by step.</p>
   </div>
@@ -29,38 +29,18 @@
 
 <main class="gate" id="gate-loading" aria-live="polite">
   <div class="gate-card" style="align-items:center;text-align:center">
-    <div class="gate-brand"><svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#d99a1c;stroke-width:2.4" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg>Stayingfit</div>
+    <div class="auth-brand"><span class="auth-logo"><svg width="22" height="22" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#fff;stroke-width:2.6" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg></span>Stayingfit</div>
     <p id="loading-text"><span class="spin"></span> Loading…</p>
   </div>
 </main>
 
-<main class="gate land" id="gate-roles" hidden>
-  <div class="land-in">
-    <div class="land-brand"><svg width="34" height="34" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#f5c95e;stroke-width:2.4" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg>Stayingfit</div>
-    <h1 id="land-h">Who's signing in?</h1>
-    <p class="land-sub" id="land-sub">Pushpanjali Khaitan's nutrition coaching app.</p>
-    <div class="roles three" role="group" aria-labelledby="land-h">
-      <button class="role" type="button" data-role-pick="client">
-        <span class="ri"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" style="stroke:#1f5233;stroke-width:2" d="M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg></span>
-        <strong>Client</strong><span class="d">Log your weight, water, meals and workouts, and chat with your coach.</span><span class="go">Sign in →</span>
-      </button>
-      <button class="role" type="button" data-role-pick="coach">
-        <span class="ri"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" style="stroke:#2c5282;stroke-width:2" d="M5 19C5 10 10 5 20 4c0 10-5 15-14 15zM5 19l7-7"/></svg></span>
-        <strong>Coach</strong><span class="d">See every client, reply to messages, and manage diet plans and renewals.</span><span class="go">Sign in →</span>
-      </button>
-      <button class="role" type="button" data-role-pick="assistant">
-        <span class="ri"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" style="stroke:#c2410c;stroke-width:2" d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg></span>
-        <strong>Assistant</strong><span class="d">Today's follow-ups, client check-ins and replies to messages.</span><span class="go">Sign in →</span>
-      </button>
-    </div>
-  </div>
-</main>
-
-<main class="gate" id="gate-login" hidden>
+<main class="gate auth" id="gate-login" hidden>
   <div class="gate-card">
-    <button class="linkbtn back" type="button" id="li-back">← Choose a different role</button>
-    <div class="gate-brand"><svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#d99a1c;stroke-width:2.4" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg>Stayingfit</div>
-    <h1 id="li-h">Client sign in</h1>
+    <div class="auth-head">
+      <span class="auth-logo lg"><svg width="34" height="34" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#fff;stroke-width:2.6" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg></span>
+      <h1 class="auth-name">Stayingfit</h1>
+      <p class="auth-sub" id="land-sub">Pushpanjali Khaitan's nutrition coaching</p>
+    </div>
     <form id="li-form" novalidate>
       <div class="field"><label class="lbl" for="li-user">Username</label><input class="input" id="li-user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="60" required></div>
       <div class="field"><label class="lbl" for="li-pw">Password</label>
@@ -68,21 +48,38 @@
       <div class="err" id="li-err" role="alert" hidden></div>
       <button class="btn" type="submit" id="li-go">Sign in</button>
     </form>
-    <p class="small" id="li-help"></p>
+    <p class="small muted auth-help">Forgot your password? Ask Pushpanjali to reset it.</p>
   </div>
+  <p class="auth-foot"><a href="privacy.html" target="_blank" rel="noopener">Terms and privacy</a></p>
 </main>
 
 <main class="gate" id="gate-newpw" hidden>
   <div class="gate-card">
-    <div class="gate-brand"><svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#d99a1c;stroke-width:2.4" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg>Stayingfit</div>
-    <h1>Choose your own password</h1>
-    <p>You signed in with a temporary password. Pick one only you know; you'll use it from now on.</p>
-    <form id="np-form" novalidate>
-      <div class="field" id="np-old-f" hidden><label class="lbl" for="np-old">Temporary password</label><input class="input" id="np-old" type="password" autocomplete="current-password" maxlength="72"></div>
-      <div class="field"><label class="lbl" for="np-new">New password</label><div class="pw-wrap"><input class="input" id="np-new" type="password" autocomplete="new-password" minlength="8" maxlength="72"><button class="pw-eye" type="button" data-eye="np-new" aria-label="Show password" aria-pressed="false">Show</button></div><span class="small muted">At least 8 characters.</span></div>
-      <div class="field"><label class="lbl" for="np-new2">Type it again</label><input class="input" id="np-new2" type="password" autocomplete="new-password" maxlength="72"></div>
+    <div class="auth-brand"><span class="auth-logo"><svg width="22" height="22" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#fff;stroke-width:2.6" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg></span>Stayingfit</div>
+    <div id="fl-ask" class="fl-ask">
+      <div>
+        <h1 id="fl-h">Welcome</h1>
+        <p class="auth-sub">You're signed in as <strong id="fl-user"></strong>.</p>
+      </div>
+      <p class="fl-q">Do you want to change your username and password?</p>
+      <div class="fl-choice">
+        <button class="btn" type="button" id="fl-yes">Yes, change them</button>
+        <button class="ghost big" type="button" id="fl-no">No, keep these</button>
+      </div>
+      <p class="small muted">You can change them later too, from Account at the top of the app.</p>
+    </div>
+    <form id="np-form" novalidate hidden>
+      <div>
+        <h1>Choose your login</h1>
+        <p class="auth-sub">Change one or both. Leave the password boxes empty to keep your current password.</p>
+      </div>
+      <div class="field"><label class="lbl" for="np-user">Username</label><input class="input" id="np-user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30"><span class="small muted">Small letters and numbers, 3 to 30 characters.</span></div>
+      <div class="field" id="np-old-f" hidden><label class="lbl" for="np-old">Current password</label><input class="input" id="np-old" type="password" autocomplete="current-password" maxlength="72"></div>
+      <div class="field"><label class="lbl" for="np-new">New password</label><div class="pw-wrap"><input class="input" id="np-new" type="password" autocomplete="new-password" maxlength="72"><button class="pw-eye" type="button" data-eye="np-new" aria-label="Show password" aria-pressed="false">Show</button></div><span class="small muted">At least 8 characters.</span></div>
+      <div class="field"><label class="lbl" for="np-new2">New password again</label><input class="input" id="np-new2" type="password" autocomplete="new-password" maxlength="72"></div>
       <div class="err" id="np-err" role="alert" hidden></div>
       <button class="btn" type="submit" id="np-go">Save and continue</button>
+      <button class="ghost big" type="button" id="fl-back">Back</button>
     </form>
     <button class="linkbtn" type="button" data-signout>Sign out</button>
   </div>
@@ -90,7 +87,7 @@
 
 <main class="gate" id="gate-noprofile" hidden>
   <div class="gate-card">
-    <div class="gate-brand"><svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#d99a1c;stroke-width:2.4" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg>Stayingfit</div>
+    <div class="auth-brand"><span class="auth-logo"><svg width="22" height="22" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#fff;stroke-width:2.6" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg></span>Stayingfit</div>
     <h1>This login isn't set up</h1>
     <p>Ask Pushpanjali to check your account.</p>
     <button class="btn" type="button" data-signout>Back to sign in</button>
@@ -99,7 +96,7 @@
 
 <main class="gate" id="gate-consent" hidden>
   <div class="gate-card">
-    <div class="gate-brand"><svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#d99a1c;stroke-width:2.4" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg>Stayingfit</div>
+    <div class="auth-brand"><span class="auth-logo"><svg width="22" height="22" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#fff;stroke-width:2.6" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg></span>Stayingfit</div>
     <h1>Before you start</h1>
     <p>Stayingfit keeps what you log (weight, meals, meal photos, water and workouts) so Pushpanjali and her team can guide your plan.</p>
     <ul class="consent-list">
@@ -107,9 +104,9 @@
       <li>Your data is never sold or shared with anyone else.</li>
       <li>You can ask Pushpanjali to delete your account and data at any time.</li>
     </ul>
-    <label class="consent-check"><input type="checkbox" class="cbx" id="consent-box"> I agree to my logs being stored and shared with my coach's team as described above.</label>
+    <label class="consent-check"><input type="checkbox" class="cbx" id="consent-box"> I agree to the terms and privacy notice, and to my logs being stored and shared with my coach's team as described above.</label>
     <button class="btn" type="button" id="consent-go" disabled>Continue</button>
-    <a class="small" href="privacy.html" target="_blank" rel="noopener">Read the full privacy notice</a>
+    <a class="small" href="privacy.html" target="_blank" rel="noopener">Read the terms and privacy notice</a>
   </div>
 </main>
 
@@ -121,7 +118,7 @@
     <span class="nav-who" id="nav-who"></span>
     <span class="nav-act">
       <button class="navbtn" id="snd" type="button" aria-pressed="true">Sound on</button>
-      <button class="navbtn" id="pw-open" type="button">Password</button>
+      <button class="navbtn" id="pw-open" type="button">Account</button>
       <button class="navbtn" type="button" data-signout>Sign out</button>
     </span>
   </div>
@@ -386,11 +383,14 @@
 <div class="modal-root" id="pw-modal" hidden>
   <div class="modal-bg" data-close-modal="1"></div>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pwm-h">
-    <h2 id="pwm-h">Change your password</h2>
+    <h2 id="pwm-h">Your login</h2>
     <form id="pwm-form" novalidate>
+      <div class="field"><label class="lbl" for="pwm-user">Username</label><input class="input" id="pwm-user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30"></div>
+      <div class="divider"></div>
+      <span class="small muted">To change your password, fill in all three boxes. Otherwise leave them empty.</span>
       <div class="field"><label class="lbl" for="pwm-old">Current password</label><input class="input" id="pwm-old" type="password" autocomplete="current-password" maxlength="72"></div>
-      <div class="field"><label class="lbl" for="pwm-new">New password</label><input class="input" id="pwm-new" type="password" autocomplete="new-password" maxlength="72"><span class="small muted">At least 8 characters.</span></div>
-      <div class="field"><label class="lbl" for="pwm-new2">Type it again</label><input class="input" id="pwm-new2" type="password" autocomplete="new-password" maxlength="72"></div>
+      <div class="field"><label class="lbl" for="pwm-new">New password</label><input class="input" id="pwm-new" type="password" autocomplete="new-password" maxlength="72"></div>
+      <div class="field"><label class="lbl" for="pwm-new2">New password again</label><input class="input" id="pwm-new2" type="password" autocomplete="new-password" maxlength="72"></div>
       <div class="err" id="pwm-err" role="alert" hidden></div>
       <div class="row"><button class="btn" type="submit" id="pwm-go">Save</button><button class="ghost" style="height:44px" type="button" data-close-modal="1">Cancel</button></div>
     </form>
