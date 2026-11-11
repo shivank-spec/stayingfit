@@ -198,34 +198,36 @@ const uidNow = () => (S.session && S.session.user.id) || '';
 const isCoach = () => S.role === 'coach';
 const isStaff = () => S.role === 'coach' || S.role === 'assistant';
 const fixErr = (r) => { if (r && r.error) throw r.error; return r; };
+async function allRows(make) { let out = [], from = 0; for (;;) { const r = fixErr(await make().range(from, from + 999)); const rows = r.data || []; out = out.concat(rows); if (rows.length < 1000 || from >= 99000) break; from += 1000; } return { data: out }; }
+const START_HTML = '<strong style="display:block;font:600 20px var(--display);color:var(--ink);margin-bottom:6px">Start by adding your first client</strong>You pick their username. The app makes a temporary password and a ready-to-send WhatsApp message.<br><br><button class="btn" type="button" data-first-client="1">Add your first client</button>';
 const msgTime = (iso) => { const d = new Date(iso), day = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); return (day === TODAY ? '' : fmtShort(day) + ', ') + d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase(); };
 const planHas = (p) => Array.isArray(p) && p.some((d) => Array.isArray(d) && d.some((x) => x && String(x).trim()));
 const istHour = () => +new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false });
 const appUrl = () => CFG.appUrl || (location.origin + location.pathname.replace(/index\.html$/, ''));
-const WORDS = ['Mango', 'Lotus', 'Tulsi', 'Jamun', 'Amla', 'Neem', 'Peach', 'Guava', 'Lemon', 'Mint', 'Ginger', 'Coconut', 'Banyan', 'Saffron', 'Cedar', 'River', 'Monsoon', 'Sunrise'];
-function tempPassword() { const r = new Uint32Array(2); crypto.getRandomValues(r); return WORDS[r[0] % WORDS.length] + '-' + String(1000 + (r[1] % 9000)); }
+const WORDS = ['Wellness', 'Balance', 'Vitality', 'Healthy', 'Active', 'Energy', 'Strong', 'Fresh'];
+function tempPassword() { const r = new Uint32Array(2); crypto.getRandomValues(r); return WORDS[r[0] % WORDS.length] + '@' + String(1000 + (r[1] % 9000)); }
 function suggestUsername(name) { const p = String(name || '').toLowerCase().normalize('NFKD').replace(/[^a-z\s]/g, '').trim().split(/\s+/).filter(Boolean); if (!p.length) return ''; let u = p[0] + (p[1] ? p[1][0] : ''); if (u.length < 3) u = (u + 'fit').slice(0, 6); return u.slice(0, 30); }
 function loginMessage(name, username, pw) {
-  return 'Hi ' + first(name) + '! Here is your Stayingfit login.\n\nOpen: ' + appUrl() + '\nTap "Client", then sign in with:\nUsername: ' + username + '\nPassword: ' + pw + '\n\nThe first time you sign in, you will choose your own password.';
+  return 'Hi ' + first(name) + '! Here is your Stayingfit login.\n\nOpen: ' + appUrl() + '\nSign in with:\nUsername: ' + username + '\nPassword: ' + pw + '\n\nThe first time you sign in, you can change your username and password.';
 }
 async function copyText(t) { try { await navigator.clipboard.writeText(t); toast('Copied. Paste it into WhatsApp.'); } catch (e) { toast('Couldn’t copy. Select the text and copy it.'); } }
 
 /* ================================================================== */
 /*  SCREENS + SIGN-IN                                                  */
 /* ================================================================== */
-const GATES = ['gate-setup', 'gate-loading', 'gate-roles', 'gate-login', 'gate-newpw', 'gate-noprofile', 'gate-consent'];
+const GATES = ['gate-setup', 'gate-loading', 'gate-login', 'gate-newpw', 'gate-noprofile', 'gate-consent'];
 function show(id) {
   GATES.forEach((g) => { $('#' + g).hidden = g !== id; });
   $('#app').hidden = id !== 'app';
   syncMbar();
-  const auto = { 'gate-login': '#li-user', 'gate-newpw': '#np-new' }[id];
+  const auto = { 'gate-login': '#li-user' }[id];
   if (auto) setTimeout(() => { const el = $(auto); if (el && !el.hidden && !el.value) el.focus(); }, 30);
 }
 function loading(text) { $('#loading-text').innerHTML = '<span class="spin"></span> ' + esc(text || 'Loading…'); show('gate-loading'); }
 
 async function boot() {
   if (!CFG.supabaseUrl || /YOUR-/.test(CFG.supabaseUrl) || !CFG.supabaseAnonKey || /YOUR-/.test(CFG.supabaseAnonKey) || !window.supabase) { show('gate-setup'); return; }
-  $('#land-sub').textContent = (CFG.coachFullName || 'Pushpanjali Khaitan') + '’s nutrition coaching app.';
+  $('#land-sub').textContent = (CFG.coachFullName || 'Pushpanjali Khaitan') + '’s nutrition coaching';
   S.sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'sf-auth' } });
   S.sb.auth.onAuthStateChange((ev, session) => {
     const had = !!S.session; S.session = session;
@@ -234,35 +236,36 @@ async function boot() {
   });
   const { data } = await S.sb.auth.getSession();
   S.session = data.session;
-  if (S.session) await route(); else show('gate-roles');
+  if (S.session) await route(); else showLogin();
 }
 function signedOut() {
   if (S.rt && S.sb) { try { S.sb.removeChannel(S.rt); } catch (e) {} }
   S.rt = null; closeDrawer(); closeModal();
   Object.assign(S, freshState()); S.session = null;
   document.body.classList.remove('readonly');
-  ['#li-pw', '#np-old', '#np-new', '#np-new2'].forEach((s) => { $(s).value = ''; });
+  ['#li-pw', '#np-user', '#np-old', '#np-new', '#np-new2'].forEach((s) => { $(s).value = ''; });
   $('#view-client').hidden = true; $('#view-staff').hidden = true;
-  show('gate-roles');
+  showLogin();
 }
 async function signOut() { try { await S.sb.auth.signOut({ scope: 'local' }); } catch (e) {} signedOut(); }
 
 async function route() {
-  if (!S.session) { show('gate-roles'); return; }
+  if (!S.session) { showLogin(); return; }
   loading('Opening your dashboard…');
   try {
     const { data: prof, error } = await S.sb.from('profiles').select('id,username,role,display_name,must_change_pw').eq('id', S.session.user.id).maybeSingle();
     if (error) throw error;
     if (!prof) { show('gate-noprofile'); return; }
     S.profile = prof; S.role = prof.role;
-    if (prof.must_change_pw) { $('#np-old-f').hidden = !!S.lastPw; show('gate-newpw'); return; }
+    if (prof.must_change_pw) { showFirst(); return; }
     S.lastPw = '';
-    $('#nav-who').textContent = prof.display_name + ' · ' + ROLE_NAME[prof.role] + ' · @' + prof.username;
+    setWho();
     if (S.role === 'client') {
       await loadClient();
       if (!S.me) { show('gate-noprofile'); return; }
       if (!S.me.consent_at) { show('gate-consent'); return; }
       $('#view-staff').hidden = true; $('#view-client').hidden = false; show('app'); renderClient();
+      if (S.justJoined) { S.justJoined = false; celebrate({ name: 'Welcome, ' + first(S.me.name), desc: 'You’re all set', fill: 'var(--forest)', g: G.leaf }, 'Start with your morning weigh-in to earn your first star.', 'Stayingfit'); }
     } else {
       document.body.classList.toggle('readonly', !isCoach());
       await loadStaff();
@@ -278,15 +281,11 @@ async function route() {
   }
 }
 
-/* role picker + sign-in form */
-function pickRole(r) {
-  S.pickRole = r;
-  $('#li-h').textContent = ROLE_NAME[r] + ' sign in';
-  $('#li-help').innerHTML = r === 'client' ? 'Your username and password come from ' + esc(COACH) + '. Forgot your password? Message her and she’ll set a new one.' : 'Forgot your password? Ask Shivank to reset it.';
-  $('#li-err').hidden = true; $('#li-pw').value = '';
-  show('gate-login');
-}
-$('#li-back').addEventListener('click', () => show('gate-roles'));
+/* sign-in form: the login itself decides which screens open */
+const UNAME = /^[a-z0-9][a-z0-9._-]{2,29}$/;
+const UNAME_HELP = 'Usernames are 3 to 30 characters: small letters, numbers, dots, dashes or underscores.';
+function showLogin() { $('#li-err').hidden = true; show('gate-login'); }
+function setWho() { const p = S.profile; if (p) $('#nav-who').textContent = p.display_name + ' · ' + ROLE_NAME[p.role] + ' · @' + p.username; }
 $('#li-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const err = $('#li-err'), fail = (m) => { err.textContent = m; err.hidden = false; };
@@ -299,58 +298,84 @@ $('#li-form').addEventListener('submit', async (e) => {
   try {
     const { data, error } = await S.sb.auth.signInWithPassword({ email: user + '@' + DOMAIN, password: pw });
     if (error) throw error;
-    const { data: prof, error: pe } = await S.sb.from('profiles').select('role').eq('id', data.user.id).maybeSingle();
-    if (pe) throw pe;
-    if (!prof || prof.role !== S.pickRole) {
-      S.quietOut = true; try { await S.sb.auth.signOut({ scope: 'local' }); } finally { S.quietOut = false; }
-      S.session = null;
-      if (!prof) return fail('This login isn’t set up. Ask ' + COACH + ' to check it.');
-      return fail('That’s not a ' + ROLE_NAME[S.pickRole].toLowerCase() + ' login. Go back and choose ' + ROLE_NAME[prof.role] + '.');
-    }
     S.session = data.session; S.lastPw = pw; $('#li-pw').value = '';
     await route();
   } catch (ex) { fail(friendly(ex)); }
   finally { btn.disabled = false; btn.textContent = 'Sign in'; }
 });
+
+/* first sign-in: "do you want to change your username and password?" */
+function showFirst() {
+  const p = S.profile;
+  $('#fl-h').textContent = 'Welcome, ' + first(p.display_name);
+  $('#fl-user').textContent = p.username;
+  $('#fl-ask').hidden = false; $('#np-form').hidden = true; $('#np-err').hidden = true;
+  show('gate-newpw');
+}
+$('#fl-yes').addEventListener('click', () => {
+  $('#np-user').value = S.profile.username; $('#np-old-f').hidden = !!S.lastPw;
+  $('#fl-ask').hidden = true; $('#np-form').hidden = false; $('#np-user').focus();
+});
+$('#fl-back').addEventListener('click', () => { $('#np-form').hidden = true; $('#fl-ask').hidden = false; $('#np-err').hidden = true; });
+$('#fl-no').addEventListener('click', async () => {
+  const b = $('#fl-no'); b.disabled = true;
+  const { error } = await S.sb.rpc('keep_my_login'); b.disabled = false;
+  if (error) { toast(friendly(error)); return; }
+  S.lastPw = ''; await route();
+});
+/* shared by the first sign-in form and the Account dialog; returns an error message or '' */
+async function saveLogin(user, old, n1, n2) {
+  user = String(user || '').trim().toLowerCase();
+  const newUser = user !== S.profile.username, newPw = !!(n1 || n2);
+  if (newUser && !UNAME.test(user)) return UNAME_HELP;
+  if (newPw) {
+    if (!old) return 'Enter your current password.';
+    if (n1.length < 8) return 'Use at least 8 characters for the new password.';
+    if (n1 !== n2) return 'The two new passwords don’t match.';
+    if (n1 === old) return 'Pick a password different from the current one.';
+  }
+  if (newUser) {
+    const r = await S.sb.rpc('change_my_username', { p_new: user });
+    if (r.error) return friendly(r.error);
+    S.profile.username = user; setWho(); $('#li-user').value = '';
+  }
+  if (newPw) {
+    const r = await S.sb.rpc('change_my_password', { p_old: old, p_new: n1 });
+    if (r.error) return friendly(r.error);
+  }
+  return '';
+}
 $('#np-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const err = $('#np-err'), fail = (m) => { err.textContent = m; err.hidden = false; };
-  const old = S.lastPw || $('#np-old').value, n1 = $('#np-new').value, n2 = $('#np-new2').value;
-  if (!old) return fail('Enter the temporary password you were given.');
-  if (n1.length < 8) return fail('Use at least 8 characters.');
-  if (n1 !== n2) return fail('The two passwords don’t match.');
-  if (n1 === old) return fail('Pick something different from the temporary password.');
-  err.hidden = true;
+  const err = $('#np-err'), n1 = $('#np-new').value, n2 = $('#np-new2').value;
   const btn = $('#np-go'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Saving…';
-  const { error } = await S.sb.rpc('change_my_password', { p_old: old, p_new: n1 });
+  let msg = await saveLogin($('#np-user').value, S.lastPw || $('#np-old').value, n1, n2);
+  if (!msg && !(n1 || n2)) { const r = await S.sb.rpc('keep_my_login'); if (r.error) msg = friendly(r.error); }
   btn.disabled = false; btn.textContent = 'Save and continue';
-  if (error) { if (/current password is wrong/i.test(error.message)) { S.lastPw = ''; $('#np-old-f').hidden = false; } return fail(friendly(error)); }
-  ['#np-old', '#np-new', '#np-new2'].forEach((s) => { $(s).value = ''; }); S.lastPw = '';
-  toast('Password saved'); await route();
+  if (msg) { if (/current password/i.test(msg)) { S.lastPw = ''; $('#np-old-f').hidden = false; } err.textContent = msg; err.hidden = false; return; }
+  ['#np-old', '#np-new', '#np-new2'].forEach((x) => { $(x).value = ''; }); S.lastPw = '';
+  toast('Saved'); await route();
 });
 $('#consent-box').addEventListener('change', (e) => { $('#consent-go').disabled = !e.target.checked; });
 $('#consent-go').addEventListener('click', async () => {
   const b = $('#consent-go'); b.disabled = true;
   const { error } = await S.sb.rpc('give_consent'); b.disabled = false;
   if (error) { toast(friendly(error)); return; }
+  S.justJoined = true;
   await route();
 });
 
-/* change password (signed in) */
-function openModal() { $('#pw-modal').hidden = false; $('#pwm-err').hidden = true; ['#pwm-old', '#pwm-new', '#pwm-new2'].forEach((s) => { $(s).value = ''; }); setTimeout(() => $('#pwm-old').focus(), 20); }
+/* Account dialog: change username and/or password any time */
+function openModal() { $('#pw-modal').hidden = false; $('#pwm-err').hidden = true; $('#pwm-user').value = S.profile ? S.profile.username : ''; ['#pwm-old', '#pwm-new', '#pwm-new2'].forEach((x) => { $(x).value = ''; }); }
 function closeModal() { const m = $('#pw-modal'); if (m) m.hidden = true; }
 $('#pw-open').addEventListener('click', openModal);
 $('#pwm-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const err = $('#pwm-err'), fail = (m) => { err.textContent = m; err.hidden = false; };
-  const o = $('#pwm-old').value, n1 = $('#pwm-new').value, n2 = $('#pwm-new2').value;
-  if (!o) return fail('Enter your current password.');
-  if (n1.length < 8) return fail('Use at least 8 characters.');
-  if (n1 !== n2) return fail('The two new passwords don’t match.');
-  const b = $('#pwm-go'); b.disabled = true;
-  const { error } = await S.sb.rpc('change_my_password', { p_old: o, p_new: n1 }); b.disabled = false;
-  if (error) return fail(friendly(error));
-  closeModal(); toast('Password changed');
+  const err = $('#pwm-err'), b = $('#pwm-go'); b.disabled = true;
+  const msg = await saveLogin($('#pwm-user').value, $('#pwm-old').value, $('#pwm-new').value, $('#pwm-new2').value);
+  b.disabled = false;
+  if (msg) { err.textContent = msg; err.hidden = false; return; }
+  closeModal(); toast('Saved');
 });
 
 /* ================================================================== */
@@ -451,7 +476,7 @@ function renderClient() {
   $('#goal-tag').textContent = goal ? 'Goal ' + goal.toFixed(1) + ' kg' : 'Goal not set';
   $('#wt-form').hidden = logged;
   const wd = $('#wt-done'); wd.hidden = !logged; wd.style.display = logged ? 'flex' : '';
-  if (logged) wd.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="color:var(--forest);flex-shrink:0"><path class="ic" style="stroke-width:2.4" d="M4 12.5l5 5L20 6.5"/></svg><span style="flex:1"><strong>' + cur.toFixed(1) + ' kg</strong> logged today. Streak: ' + streak + ' days.</span><button class="ghost" type="button" id="wt-edit">Fix today’s weight</button>';
+  if (logged) wd.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="color:var(--forest);flex-shrink:0"><path class="ic" style="stroke-width:2.4" d="M4 12.5l5 5L20 6.5"/></svg><span style="flex:1"><strong>' + cur.toFixed(1) + ' kg</strong> logged today. Streak: ' + streak + (streak === 1 ? ' day.' : ' days.') + '</span><button class="ghost" type="button" id="wt-edit">Fix today’s weight</button>';
   renderChart(goal, w, $('#chart-box'));
   const wk = w.filter((x) => x.d >= addDays(TODAY, -7)), wkD = wk.length > 1 ? wk[wk.length - 1].v - wk[0].v : null;
   $('#wt-kv').innerHTML = '<div><span class="eyebrow">Start</span><strong class="num">' + start.toFixed(1) + ' kg</strong></div><div><span class="eyebrow">Last 7 days</span><strong class="num">' + (wkD == null ? '—' : (wkD > 0 ? '+' : '−') + Math.abs(wkD).toFixed(1) + ' kg') + '</strong></div><div><span class="eyebrow">Current</span><strong class="num">' + cur.toFixed(1) + ' kg</strong></div><div><span class="eyebrow">Goal</span><strong class="num" style="color:var(--slate)">' + (goal ? goal.toFixed(1) + ' kg' : '—') + '</strong></div>';
@@ -656,7 +681,7 @@ async function loadStaff() {
   const [c, p, w, d, pl, t] = await Promise.all([
     S.sb.from('clients').select('*').order('name'),
     S.sb.from('profiles').select('id,username,role,display_name,must_change_pw'),
-    S.sb.from('weights').select('client_id,d,kg').gte('d', since).order('d').limit(20000),
+    allRows(() => S.sb.from('weights').select('client_id,d,kg').gte('d', since).order('d').order('client_id')),
     S.sb.from('day_logs').select('*').eq('d', TODAY),
     S.sb.from('diet_plans').select('client_id,days'),
     S.sb.from('blood_tests').select('*').order('d')
@@ -741,7 +766,7 @@ function renderTasks(tasks) {
   $('#tk-eyebrow').textContent = isCoach() ? 'Needs you today' : 'Your list for today';
   $('#tk-count').textContent = tasks.length ? tasks.length + ' open' : '';
   $('#tasks').innerHTML = tasks.length ? tasks.map((t) => '<div class="fu"><span class="dot p' + t.p + '" aria-hidden="true"></span><div class="fu-t"><strong>' + esc(t.title) + '</strong><span class="small muted">' + esc(t.sub) + '</span></div><div class="fu-a">' + t.acts.map((a) => '<button class="' + a[2] + '" type="button" ' + a[1] + ' style="height:36px">' + a[0] + '</button>').join('') + '</div></div>').join('')
-    : '<div class="empty">' + (S.clients.length ? 'All clear. Nobody needs a follow-up right now.' : 'Follow-ups appear here once clients are added.') + '</div>';
+    : '<div class="empty">' + (S.clients.length ? 'All clear. Nobody needs a follow-up right now.' : (isCoach() ? START_HTML : 'Follow-ups appear here once ' + esc(COACH) + ' adds clients.')) + '</div>';
 }
 function renderCheckins() {
   const cs = S.clients, n = cs.length, done = cs.filter((c) => c.last_log_date === TODAY);
@@ -770,17 +795,17 @@ function renderClientsTable() {
   $('#tbl-empty').hidden = !!list.length;
   $('#tbl-empty').textContent = cs.length ? 'No clients match.' : (isCoach() ? 'No clients yet. Tap Add client to create the first login.' : 'No clients yet.');
   $('#tbody').innerHTML = list.map((c) => { const ago = lastLogAgo(c), lp = lossPctOf(c, wsOf(c)), d = S.days[c.id], pr = profOf(c), pl = planLeft(c);
-    const today = d ? (d.water || 0) + '/10 water · ' + (d.meals || []).length + ' meals' + ((d.photos || []).length ? ' · ' + d.photos.length + ' photo' + (d.photos.length > 1 ? 's' : '') : '') : '<span class="muted">Nothing yet</span>';
+    const today = d ? (d.water || 0) + '/10 water · ' + (d.meals || []).length + ((d.meals || []).length === 1 ? ' meal' : ' meals') + ((d.photos || []).length ? ' · ' + d.photos.length + ' photo' + (d.photos.length > 1 ? 's' : '') : '') : '<span class="muted">Nothing yet</span>';
     return '<tr class="click' + (c.id === S.drawer ? ' sel' : '') + '" data-row="' + esc(c.id) + '"><td><span style="display:flex;align-items:center;gap:10px"><span class="avatar">' + esc(initials(c.name)) + '</span><span style="display:flex;flex-direction:column"><button class="linkbtn" style="padding:0;text-decoration:none;color:var(--ink);font-weight:700" type="button" data-pick="' + esc(c.id) + '">' + esc(c.name) + '</button><span class="small muted">@' + esc(pr.username || '') + (!c.consent_at ? ' · not signed in yet' : pr.must_change_pw ? ' · temporary password' : '') + '</span></span></span></td>'
       + '<td class="num">' + curOf(c, wsOf(c)).toFixed(1) + ' kg</td><td>' + spark(wsOf(c)) + '</td><td class="num"><span class="minibar"><i style="width:' + Math.max(lp / maxL * 100, 0).toFixed(0) + '%"></i></span>' + lp.toFixed(1) + '%</td>'
-      + '<td><span class="tag ' + tierCls(c.tier) + '">' + esc(c.tier) + '</span></td><td class="num">' + liveStreak(c) + ' days</td><td class="small">' + today + '</td>'
+      + '<td><span class="tag ' + tierCls(c.tier) + '">' + esc(c.tier) + '</span></td><td class="num">' + liveStreak(c) + (liveStreak(c) === 1 ? ' day' : ' days') + '</td><td class="small">' + today + '</td>'
       + '<td><span class="status ' + (ago >= 2 ? 'over' : 'ok') + '" style="text-align:left">' + (ago === 0 ? 'Today' : ago === 1 ? 'Yesterday' : ago > 900 ? 'Never' : ago + ' days ago') + '</span></td>'
       + '<td><span class="status ' + (pl < 0 ? 'over' : pl <= 7 ? 'soon' : 'ok') + '" style="text-align:left">' + (pl < 0 ? 'Ended ' + fmtShort(c.plan_end) : fmtShort(c.plan_end)) + '</span></td></tr>'; }).join('');
   renderCred();
 }
 function renderCred() {
   const box = $('#add-cred'), c = S.cred;
-  box.innerHTML = c && c.where === 'add' ? '<div class="cred"><strong>' + esc(c.name) + ' is set up. Send them this login.</strong><pre id="cred-text">' + esc(c.text) + '</pre><div class="row"><button class="btn" type="button" data-copy-cred="1">Copy message</button><button class="ghost" style="height:44px" type="button" data-cred-close="1">Done</button></div><span class="small muted">The password isn’t stored anywhere you can see it again. If it’s lost, use Reset password on their profile.</span></div>' : '';
+  box.innerHTML = c && c.where === 'add' ? '<div class="cred"><strong>' + esc(c.name) + ' is set up. Send them this login.</strong><pre id="cred-text">' + esc(c.text) + '</pre><div class="row"><button class="btn" type="button" data-copy-cred="1">Copy message</button><a class="ghost wa" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(c.text) + '">Send on WhatsApp</a><button class="ghost" style="height:44px" type="button" data-cred-close="1">Done</button></div><span class="small muted">The password isn’t stored anywhere you can see it again. If it’s lost, use Reset password on their profile.</span></div>' : '';
 }
 $('#add-toggle').addEventListener('click', (e) => {
   const f = $('#add-form'); f.hidden = !f.hidden;
@@ -845,8 +870,8 @@ async function renderDrawer() {
       + '<div class="row" style="grid-column:1/-1"><button class="btn" type="submit">Save changes</button><button class="ghost" style="height:44px" type="button" data-dmode="" data-for="' + esc(c.id) + '">Cancel</button></div><div class="err" id="de-err" role="alert" hidden style="grid-column:1/-1"></div></form>';
   }
   if (isCoach() && mode === 'reset') {
-    h += S.dcred ? '<div class="cred"><strong>New password set for ' + esc(first(c.name)) + '.</strong><pre>' + esc(S.dcred) + '</pre><div class="row"><button class="btn" type="button" data-copy-dcred="1">Copy message</button><button class="ghost" style="height:44px" type="button" data-dmode="" data-for="' + esc(c.id) + '">Done</button></div><span class="small muted">They’re signed out on other devices and choose their own password when they sign in.</span></div>'
-      : '<div class="card" style="padding:16px;gap:12px;animation:none"><span class="eyebrow">Reset password</span><p class="small">Sets a new temporary password for @' + esc(pr.username || '') + ' and signs them out everywhere. They choose their own password next time they sign in.</p><div class="row"><button class="btn" type="button" data-reset-go="' + esc(c.id) + '">Set a new password</button><button class="ghost" style="height:44px" type="button" data-dmode="" data-for="' + esc(c.id) + '">Cancel</button></div></div>';
+    h += S.dcred ? '<div class="cred"><strong>New password set for ' + esc(first(c.name)) + '.</strong><pre>' + esc(S.dcred) + '</pre><div class="row"><button class="btn" type="button" data-copy-dcred="1">Copy message</button><a class="ghost wa" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(S.dcred) + '">Send on WhatsApp</a><button class="ghost" style="height:44px" type="button" data-dmode="" data-for="' + esc(c.id) + '">Done</button></div><span class="small muted">They’re signed out on other devices. When they sign in, they’re asked if they want to change it.</span></div>'
+      : '<div class="card" style="padding:16px;gap:12px;animation:none"><span class="eyebrow">Reset password</span><p class="small">Sets a new temporary password for @' + esc(pr.username || '') + ' and signs them out everywhere. Next time they sign in, they’re asked if they want to change it.</p><div class="row"><button class="btn" type="button" data-reset-go="' + esc(c.id) + '">Set a new password</button><button class="ghost" style="height:44px" type="button" data-dmode="" data-for="' + esc(c.id) + '">Cancel</button></div></div>';
   }
   h += '<div class="d-stats"><div><span class="eyebrow">Current</span><strong class="num">' + curOf(c, ws).toFixed(1) + '</strong><span class="small muted">kg · goal ' + (c.goal_kg ? num(c.goal_kg).toFixed(1) : '—') + '</span></div><div><span class="eyebrow">Lost</span><strong class="num">' + lossPctOf(c, ws).toFixed(1) + '%</strong><span class="small muted">' + (num(c.start_kg) - curOf(c, ws)).toFixed(1) + ' kg</span></div><div><span class="eyebrow">Stars</span><strong class="num">' + c.stars + '</strong><span class="small muted">level ' + (Math.floor(c.stars / 50) + 1) + '</span></div><div><span class="eyebrow">Streak</span><strong class="num">' + liveStreak(c) + '</strong><span class="small muted">days</span></div></div>'
     + '<div class="card" style="padding:18px;gap:12px;animation:none"><div class="card-h"><div><span class="eyebrow">Weight trend</span></div><span class="small muted">Started at ' + num(c.start_kg).toFixed(1) + ' kg</span></div><div id="dr-chart"></div></div>'
@@ -1040,7 +1065,6 @@ document.addEventListener('click', (e) => {
   const t = e.target.closest('button');
   if (!t && row) { openDrawer(row.dataset.row); return; }
   if (!t) return;
-  if (t.dataset.rolePick) { pickRole(t.dataset.rolePick); return; }
   if (t.dataset.eye) { const i = document.getElementById(t.dataset.eye), on = i.type === 'password'; i.type = on ? 'text' : 'password'; t.textContent = on ? 'Hide' : 'Show'; t.setAttribute('aria-pressed', String(on)); t.setAttribute('aria-label', on ? 'Hide password' : 'Show password'); return; }
   if (t.id === 'retry') { route(); return; }
   if (t.hasAttribute('data-signout')) { signOut(); return; }
@@ -1085,6 +1109,7 @@ document.addEventListener('click', (e) => {
   if (t.dataset.sort) { const k = t.dataset.sort; if (S.sortK === k) S.sortDir = -S.sortDir; else { S.sortK = k; S.sortDir = (k === 'name' || k === 'last' || k === 'end') ? 1 : -1; } renderClientsTable(); return; }
   if (t.dataset.pick) { openDrawer(t.dataset.pick, t.dataset.dmode || null); return; }
   if (t.dataset.closeDrawer) { closeDrawer(); return; }
+  if (t.dataset.firstClient) { setTab('clients'); if ($('#add-form').hidden) $('#add-toggle').click(); return; }
   if (t.dataset.copyCred) { copyText(S.cred ? S.cred.text : ''); return; }
   if (t.dataset.credClose) { S.cred = null; renderCred(); return; }
   if (t.dataset.copyDcred) { copyText(S.dcred || ''); return; }
