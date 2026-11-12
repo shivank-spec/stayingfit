@@ -133,11 +133,12 @@ function monthLoss(c, ws) { if (!ws || !ws.length) return 0; const m0 = TODAY.sl
 function tierCls(t) { return t === 'Hand-holding' ? 'gold' : 'slate'; }
 
 /* ---------- chart ---------- */
-function renderChart(goal, w, box) {
+function renderChart(goal, w, box, start) {
   if (w.length < 2) { box.innerHTML = '<div class="empty">Your trend line appears after your second weigh-in.</div>'; box.dataset.sig = ''; return; }
   const sig = w.length + '|' + w[w.length - 1].v, anim = box.dataset.sig !== sig; box.dataset.sig = sig;
   const pts = w.slice(-30), W = Math.max(Math.round(box.clientWidth || 700), 280), H = W < 500 ? 200 : 250, pl = 38, pr = 14, pt = 24, pb = 30;
-  const vals = pts.map((p) => p.v).concat(goal ? [goal] : []);
+  const showStart = !!start && Math.abs(pts[0].v - start) > 0.05;
+  const vals = pts.map((p) => p.v).concat(goal ? [goal] : []).concat(showStart ? [start] : []);
   let lo = Math.floor(Math.min(...vals) - 0.5), hi = Math.ceil(Math.max(...vals) + 0.5);
   const step = hi - lo <= 4 ? 1 : hi - lo <= 10 ? 2 : hi - lo <= 20 ? 5 : 10;
   lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
@@ -145,6 +146,7 @@ function renderChart(goal, w, box) {
   const X = (d) => pl + (utc(d) - t0) / tspan * (W - pl - pr), Y = (v) => pt + (hi - v) / (hi - lo) * (H - pt - pb);
   let s = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Weight from ' + pts[0].v + ' kg on ' + fmtShort(pts[0].d) + ' to ' + pts[pts.length - 1].v + ' kg on ' + fmtShort(pts[pts.length - 1].d) + '">';
   for (let v = lo; v <= hi + 1e-9; v += step) s += '<line class="grid-l" x1="' + pl + '" x2="' + (W - pr) + '" y1="' + Y(v).toFixed(1) + '" y2="' + Y(v).toFixed(1) + '"/><text x="' + (pl - 8) + '" y="' + (Y(v) + 4).toFixed(1) + '" text-anchor="end">' + v + '</text>';
+  if (showStart) s += '<line style="stroke:var(--muted);stroke-width:1.5;stroke-dasharray:2 5" x1="' + pl + '" x2="' + (W - pr) + '" y1="' + Y(start).toFixed(1) + '" y2="' + Y(start).toFixed(1) + '"/><text style="fill:var(--muted);font-weight:600" x="' + (pl + 6) + '" y="' + (Y(start) - 7).toFixed(1) + '">STARTED AT ' + start.toFixed(1) + '</text>';
   if (goal) s += '<line class="goal" x1="' + pl + '" x2="' + (W - pr) + '" y1="' + Y(goal).toFixed(1) + '" y2="' + Y(goal).toFixed(1) + '"/><text class="goal-t" x="' + (W - pr) + '" y="' + (Y(goal) - 7).toFixed(1) + '" text-anchor="end">GOAL ' + goal.toFixed(1) + '</text>';
   const line = pts.map((p, i) => (i ? 'L' : 'M') + X(p.d).toFixed(1) + ' ' + Y(p.v).toFixed(1)).join(' ');
   s += '<path class="area' + (anim ? ' draw' : '') + '" d="' + line + ' L' + X(pts[pts.length - 1].d).toFixed(1) + ' ' + (H - pb) + ' L' + X(pts[0].d).toFixed(1) + ' ' + (H - pb) + ' Z"/><path class="line' + (anim ? ' draw' : '') + '" pathLength="1" d="' + line + '"/>';
@@ -477,7 +479,7 @@ function renderClient() {
   $('#wt-form').hidden = logged;
   const wd = $('#wt-done'); wd.hidden = !logged; wd.style.display = logged ? 'flex' : '';
   if (logged) wd.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="color:var(--forest);flex-shrink:0"><path class="ic" style="stroke-width:2.4" d="M4 12.5l5 5L20 6.5"/></svg><span style="flex:1"><strong>' + cur.toFixed(1) + ' kg</strong> logged today. Streak: ' + streak + (streak === 1 ? ' day.' : ' days.') + '</span><button class="ghost" type="button" id="wt-edit">Fix today’s weight</button>';
-  renderChart(goal, w, $('#chart-box'));
+  renderChart(goal, w, $('#chart-box'), start);
   const wk = w.filter((x) => x.d >= addDays(TODAY, -7)), wkD = wk.length > 1 ? wk[wk.length - 1].v - wk[0].v : null;
   $('#wt-kv').innerHTML = '<div><span class="eyebrow">Start</span><strong class="num">' + start.toFixed(1) + ' kg</strong></div><div><span class="eyebrow">Last 7 days</span><strong class="num">' + (wkD == null ? '—' : (wkD > 0 ? '+' : '−') + Math.abs(wkD).toFixed(1) + ' kg') + '</strong></div><div><span class="eyebrow">Current</span><strong class="num">' + cur.toFixed(1) + ' kg</strong></div><div><span class="eyebrow">Goal</span><strong class="num" style="color:var(--slate)">' + (goal ? goal.toFixed(1) + ' kg' : '—') + '</strong></div>';
   const jr = $('#journey');
@@ -886,7 +888,7 @@ async function renderDrawer() {
   if (isCoach()) h += '<div style="display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px"><button class="ghost" style="height:44px" type="button" data-renew="' + esc(c.id) + '">Renew 30 days</button>'
     + (S.rmConfirm === c.id ? '<span class="small" style="align-self:center;flex-basis:100%">Delete ' + esc(first(c.name)) + ', their login and all their logs? This can’t be undone.</span><button class="ghost" style="height:44px" type="button" data-rm-no="1">Keep</button><button class="ghost danger" style="height:44px" type="button" data-rm-yes="' + esc(c.id) + '">Delete for good</button>' : '<button class="ghost danger" style="height:44px" type="button" data-rm="' + esc(c.id) + '">Delete client</button>') + '</div>';
   body.innerHTML = h; body.scrollTop = keep;
-  renderChart(c.goal_kg ? num(c.goal_kg) : null, ws, $('#dr-chart'));
+  renderChart(c.goal_kg ? num(c.goal_kg) : null, ws, $('#dr-chart'), num(c.start_kg));
   const ef = $('#dr-edit');
   if (ef) ef.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1145,7 +1147,7 @@ document.addEventListener('keydown', (e) => {
 function syncSound() { const b = $('#snd'); b.textContent = SOUND ? 'Sound on' : 'Sound off'; b.setAttribute('aria-pressed', String(SOUND)); }
 function syncMbar() { const on = !$('#app').hidden && S.role === 'client' && !!S.me; $('#mbar').hidden = !on; document.body.classList.toggle('has-mbar', on); $('#snd').hidden = S.role !== 'client'; }
 let rz = null;
-window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (S.role === 'client' && S.me && !$('#app').hidden) renderChart(S.me.goal_kg ? num(S.me.goal_kg) : null, S.weights, $('#chart-box')); }, 150); });
+window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (S.role === 'client' && S.me && !$('#app').hidden) renderChart(S.me.goal_kg ? num(S.me.goal_kg) : null, S.weights, $('#chart-box'), num(S.me.start_kg)); }, 150); });
 function refreshVisible() {
   if (!S.session || $('#app').hidden) return;
   if (syncToday()) { S.day = null; }
