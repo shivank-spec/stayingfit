@@ -209,3 +209,4 @@ tr.click:hover td{background:var(--soft)}
   .card{padding:18px}
 }
 @media (max-width:700px){.sbar{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:1fr}}
+.chg{font-weight:700}.chg.down{color:var(--forest)}.chg.up{color:var(--ember)}
