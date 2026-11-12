@@ -216,8 +216,14 @@
       </div>
     </section>
 
-    <section class="card s5" aria-labelledby="pl-h">
-      <div class="card-h"><div><span class="eyebrow" id="pl-eyebrow">Today's plan</span><h2 id="pl-h">From Pushpanjali</h2></div></div>
+    <section class="card s5" aria-labelledby="lq-h">
+      <div class="card-h"><div><span class="eyebrow">Daily liquids</span><h2 id="lq-h">Daily liquids</h2></div><span class="tag gold">+2 stars</span></div>
+      <div class="lq-list" id="lq-list"></div>
+      <span class="small muted" id="lq-tip"></span>
+    </section>
+
+    <section class="card s7" aria-labelledby="pl-h">
+      <div class="card-h"><div><span class="eyebrow" id="pl-eyebrow">Your diet</span><h2 id="pl-h">From Pushpanjali</h2></div></div>
       <div id="plan-today"></div>
       <div id="tomorrow"></div>
     </section>
@@ -229,13 +235,13 @@
       <form class="composer" id="c-comp" novalidate><label class="sr" for="c-comp-in">Message</label><input class="input" id="c-comp-in" type="text" autocomplete="off" maxlength="1000" placeholder="Write a message…"><button class="btn" type="submit">Send</button></form>
     </section>
 
-    <section class="card s7" aria-labelledby="ch-h">
+    <section class="card s5" aria-labelledby="ch-h">
       <div class="card-h"><div><span class="eyebrow">Today's challenges</span><h2 id="ch-h">Three wins before bed</h2></div><span class="tag gold">+5 bonus for all three</span></div>
       <div id="challenges" style="display:flex;flex-direction:column;gap:18px"></div>
       <div class="notice" id="ch-line"></div>
     </section>
 
-    <section class="card s5" aria-labelledby="bt-h">
+    <section class="card s12" aria-labelledby="bt-h">
       <div class="card-h"><div><span class="eyebrow">Blood tests</span><h2 id="bt-h">Latest report</h2></div><button class="ghost" type="button" id="bt-toggle" aria-expanded="false" aria-controls="bt-form">Add a result</button></div>
       <div id="hs-consent" class="notice" hidden style="display:flex;flex-direction:column;gap:12px">
         <strong>Share blood test results with your coach?</strong>
@@ -291,6 +297,7 @@
 
   <!-- today / follow-ups -->
   <div class="spanel" id="p-today" role="tabpanel" aria-labelledby="t-today">
+    <div class="quick" id="k-quick"></div>
     <div class="grid">
       <section class="card s8" aria-labelledby="tk-h">
         <div class="card-h"><div><span class="eyebrow" id="tk-eyebrow">Needs you today</span><h2 id="tk-h">Follow-ups</h2></div><span class="small muted" id="tk-count"></span></div>
@@ -300,6 +307,22 @@
         <div class="card-h"><div><span class="eyebrow">Check-ins today</span><h2 id="ci-h">Weigh-ins</h2></div></div>
         <div class="track" style="height:10px"><div class="fill" id="ci-fill" style="width:0%"></div></div>
         <div id="ci-list"></div>
+      </section>
+      <section class="card s8" aria-labelledby="ph-h">
+        <div class="card-h"><div><span class="eyebrow">Meal photos · today</span><h2 id="ph-h">Today's photos</h2></div><span class="small muted">Tap a photo to enlarge</span></div>
+        <div class="photos big" id="k-photos"></div>
+      </section>
+      <section class="card s4" aria-labelledby="wk-h">
+        <div class="card-h"><div><span class="eyebrow">Last 7 days</span><h2 id="wk-h">This week</h2></div></div>
+        <div id="k-week"></div>
+      </section>
+      <section class="card s7" aria-labelledby="ac2-h">
+        <div class="card-h"><div><span class="eyebrow">What clients did today</span><h2 id="ac2-h">Activity</h2></div></div>
+        <div id="k-activity"></div>
+      </section>
+      <section class="card s5" aria-labelledby="w7-h">
+        <div class="card-h"><div><span class="eyebrow">Weigh-ins per day</span><h2 id="w7-h">Last 7 days</h2></div></div>
+        <div class="w7" id="k-w7"></div>
       </section>
     </div>
   </div>
@@ -326,6 +349,7 @@
         <div style="display:flex;gap:8px;flex-wrap:wrap" id="tiers" role="group" aria-label="Filter"></div>
       </div>
       <div class="tbl-wrap"><table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table></div>
+      <div class="cl-cards" id="cl-cards"></div>
       <div id="tbl-empty" class="empty" hidden></div>
     </section>
   </div>
@@ -334,15 +358,24 @@
   <div class="spanel" id="p-messages" role="tabpanel" aria-labelledby="t-messages" hidden>
     <section class="card" aria-labelledby="ib-h">
       <div class="card-h"><div><span class="eyebrow">One-to-one chats and family groups</span><h2 id="ib-h">Inbox</h2></div>
-        <span style="display:flex;gap:10px;align-items:center"><span class="small muted" id="ib-count"></span><button class="ghost coach-only" type="button" id="k-newgroup" aria-expanded="false" aria-controls="grp-form">New family group</button></span></div>
+        <span style="display:flex;gap:10px;align-items:center"><span class="small muted" id="ib-count"></span><button class="btn" type="button" id="bc-open" aria-expanded="false" aria-controls="bc-form" style="height:36px">Broadcast</button><button class="ghost coach-only" type="button" id="k-newgroup" aria-expanded="false" aria-controls="grp-form">New family group</button></span></div>
       <form id="grp-form" hidden novalidate style="display:flex;flex-direction:column;gap:12px;padding:14px;background:var(--soft)">
         <div class="field"><label class="lbl" for="grp-title">Group name</label><input class="input" id="grp-title" type="text" maxlength="60" placeholder="e.g. Roy family"></div>
         <fieldset style="border:0;padding:0;margin:0"><legend class="lbl" style="margin-bottom:8px">Who's in it (pick at least two)</legend><div id="grp-people" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px"></div></fieldset>
         <div class="err" id="grp-err" role="alert" hidden></div>
         <button class="btn" type="submit" style="align-self:flex-start">Create group</button>
       </form>
-      <div class="inbox"><div class="threads" id="k-threads"></div>
-        <div style="display:flex;flex-direction:column;gap:12px;min-width:0"><div class="ib-head"><span class="small muted" id="k-thread-h"></span><span id="k-thread-act"></span></div><div class="thread" id="k-thread" aria-live="polite"></div>
+      <form id="bc-form" hidden novalidate style="display:flex;flex-direction:column;gap:12px;padding:14px;background:var(--soft)">
+        <strong>Broadcast to clients</strong>
+        <span class="small muted">One message goes into each client's own chat with you. Their replies stay private.</span>
+        <div class="field"><label class="lbl" for="bc-text">Message</label><textarea class="ta" id="bc-text" maxlength="1000" rows="3" placeholder="e.g. Reminder: drink your morning liquids before breakfast."></textarea></div>
+        <div class="field" style="max-width:240px"><label class="lbl" for="bc-tier">Send to</label><select class="select" id="bc-tier"><option value="All">Every client</option><option value="Hand-holding">Hand-holding only</option><option value="Weekly">Weekly only</option></select></div>
+        <div class="err" id="bc-err" role="alert" hidden></div>
+        <div class="row"><button class="btn" type="submit" id="bc-go">Send broadcast</button><button class="ghost" style="height:44px" type="button" id="bc-cancel">Cancel</button></div>
+      </form>
+      <div style="display:flex;gap:8px;flex-wrap:wrap" id="ib-filter" role="group" aria-label="Which chats"></div>
+      <div class="inbox" id="k-inbox"><div class="threads" id="k-threads"></div>
+        <div style="display:flex;flex-direction:column;gap:12px;min-width:0"><div class="ib-head"><button class="linkbtn ib-back" type="button" id="ib-back">‹ All chats</button><span class="small muted" id="k-thread-h"></span><span id="k-thread-act"></span></div><div class="thread" id="k-thread" aria-live="polite"></div>
         <form class="composer" id="k-comp" novalidate><label class="sr" for="k-comp-in">Reply</label><input class="input" id="k-comp-in" type="text" autocomplete="off" maxlength="1000" placeholder="Write a reply…"><button class="btn" type="submit">Send</button></form></div>
       </div>
     </section>
@@ -350,17 +383,31 @@
 
   <!-- diet plans (coach) -->
   <div class="spanel" id="p-diet" role="tabpanel" aria-labelledby="t-diet" hidden>
-    <section class="card" aria-labelledby="dc-h">
-      <div class="card-h"><div><span class="eyebrow">Diet cycle manager · 4-day rotation</span><h2 id="dc-h">Diet plan</h2></div>
-        <div class="field" style="width:240px"><label class="lbl" for="dc-client">Client</label><select class="select" id="dc-client"></select></div>
-      </div>
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <div class="daytabs" id="daytabs" role="group" aria-label="Today is day"></div>
-        <span class="small muted">The cycle moves to the next day every morning on its own.</span>
-      </div>
-      <div class="plan-grid" id="plan-grid"></div>
-      <span class="small muted" id="dc-save">Edits save automatically. The client sees today's column.</span>
-    </section>
+    <div class="grid">
+      <section class="card s4" aria-labelledby="dl-h">
+        <div class="card-h"><div><span class="eyebrow">A fresh diet every 4 days</span><h2 id="dl-h">Who needs a diet</h2></div></div>
+        <div class="threads" id="dc-list"></div>
+      </section>
+      <section class="card s8" aria-labelledby="dc-h">
+        <div class="card-h"><div><span class="eyebrow" id="dc-eyebrow">Diet</span><h2 id="dc-h">Diet</h2></div>
+          <div class="field" style="width:220px"><label class="lbl" for="dc-client">Client</label><select class="select" id="dc-client"></select></div></div>
+        <div id="dc-current"></div>
+        <form id="dc-form" class="dc-form" novalidate>
+          <div class="card-h"><strong id="dc-form-h">New diet</strong><button class="ghost" type="button" id="dc-copy">Start from the last diet</button></div>
+          <div class="field" style="max-width:220px"><label class="lbl" for="dc-start">Starts on</label><input class="input" id="dc-start" type="date"></div>
+          <div class="dc-meals">
+            <div class="field"><label class="lbl" for="dc-m0">Breakfast</label><textarea class="ta" id="dc-m0" maxlength="400" rows="3"></textarea></div>
+            <div class="field"><label class="lbl" for="dc-m1">Lunch</label><textarea class="ta" id="dc-m1" maxlength="400" rows="3"></textarea></div>
+            <div class="field"><label class="lbl" for="dc-m2">Snack</label><textarea class="ta" id="dc-m2" maxlength="400" rows="3"></textarea></div>
+            <div class="field"><label class="lbl" for="dc-m3">Dinner</label><textarea class="ta" id="dc-m3" maxlength="400" rows="3"></textarea></div>
+          </div>
+          <div class="field"><label class="lbl" for="dc-notes">Note for the client (optional)</label><textarea class="ta" id="dc-notes" maxlength="600" rows="2"></textarea></div>
+          <div class="err" id="dc-err" role="alert" hidden></div>
+          <div class="row" style="align-items:center"><button class="btn" type="submit" id="dc-go">Send diet</button><span class="small muted">The client sees it straight away. It runs for 4 days.</span></div>
+        </form>
+        <div id="dc-history"></div>
+      </section>
+    </div>
   </div>
 
   <!-- renewals + detox -->
@@ -397,6 +444,7 @@
   </div>
 </div>
 
+<nav class="mbar sbar" id="sbar" aria-label="Sections" hidden></nav>
 <nav class="mbar" id="mbar" aria-label="Jump to" hidden>
   <button type="button" data-jump="c-h1" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M3 11l9-7 9 7v9H3z"/></svg>Today</button>
   <button type="button" data-jump="wt-h"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M4 20h16M6 20l2-12h8l2 12M12 8V4"/></svg>Weight</button>
