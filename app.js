@@ -190,8 +190,8 @@ function freshState() {
     role: null, profile: null, pickRole: null, lastPw: '',
     me: null, weights: [], day: null, plan: null, board: [], photoUrls: {}, tests: [], reportUrls: {},
     threads: [], msgs: {}, openThread: null, dmId: null, kThread: null,
-    clients: [], profiles: {}, allWeights: {}, days: {}, plans: {}, allTests: {},
-    exType: 'Walk', q: '', lb: 'loss', tier: 'All', cq: '', sortK: 'name', sortDir: 1, sel: null, drawer: null, drawerMode: null,
+    clients: [], profiles: {}, allWeights: {}, days: {}, diets: {}, liq: {}, ticks: {}, allTests: {}, ibox: 'mine', kOpen: false, dietFor: null,
+    exType: 'Walk', q: '', seen: {}, diet: null, liquids: [], ticked: new Set(), asstId: null, lb: 'loss', tier: 'All', cq: '', sortK: 'name', sortDir: 1, sel: null, drawer: null, drawerMode: null,
     counted: {}, lvlSeen: null, chain: Promise.resolve(), lastGlass: -1, tab: null, cred: null
   };
 }
@@ -387,21 +387,25 @@ async function loadClient() {
   const { data: c, error } = await S.sb.from('clients').select('*').eq('user_id', S.session.user.id).maybeSingle();
   if (error) throw error;
   S.me = c; if (!c || !c.consent_at) return;
-  const [w, d, p, b, t] = await Promise.all([
+  const [w, d, p, b, t, lq, tk] = await Promise.all([
     S.sb.from('weights').select('d,kg').eq('client_id', c.id).order('d'),
     S.sb.from('day_logs').select('*').eq('client_id', c.id).eq('d', TODAY).maybeSingle(),
-    S.sb.from('diet_plans').select('days').eq('client_id', c.id).maybeSingle(),
+    S.sb.from('diets').select('id,start_date,meals,notes').eq('client_id', c.id).lte('start_date', TODAY).order('start_date', { ascending: false }).limit(1),
     S.sb.rpc('leaderboard'),
-    S.sb.from('blood_tests').select('*').eq('client_id', c.id).order('d')
+    S.sb.from('blood_tests').select('*').eq('client_id', c.id).order('d'),
+    S.sb.from('liquids').select('id,name,when_text,sort').eq('client_id', c.id).eq('active', true).order('sort'),
+    S.sb.from('liquid_ticks').select('liquid_id').eq('client_id', c.id).eq('d', TODAY)
   ]);
-  [w, d, p, b, t].forEach(fixErr);
+  [w, d, p, b, t, lq, tk].forEach(fixErr);
   S.weights = (w.data || []).map((x) => ({ d: x.d, v: num(x.kg) }));
   S.day = d.data || emptyDay();
-  S.plan = p.data ? p.data.days : null;
+  S.diet = (p.data || [])[0] || null;
+  S.liquids = lq.data || []; S.ticked = new Set((tk.data || []).map((x) => x.liquid_id));
   S.board = b.data || [];
   S.tests = t.data || [];
   await Promise.all([loadPhotoUrls((S.day.photos || []).map((x) => x.path)), loadReportUrls(S.tests)]);
-  if (!S.dmId) { const r = fixErr(await S.sb.rpc('ensure_dm')); S.dmId = r.data; }
+  if (!S.dmId) { const r = fixErr(await S.sb.rpc('ensure_chat', { p_kind: 'dm' })); S.dmId = r.data; }
+  if (!S.asstId) { const r = fixErr(await S.sb.rpc('ensure_chat', { p_kind: 'asst' })); S.asstId = r.data; }
   await loadThreads();
   if (!S.openThread || !S.threads.find((x) => x.id === S.openThread)) S.openThread = S.dmId;
   await loadMsgs(S.openThread);
@@ -518,16 +522,20 @@ function renderClient() {
   $('#ex-total').textContent = exMin + ' of 30 min'; $('#ex-fill').style.width = Math.min(exMin / 30 * 100, 100) + '%';
   $('#ex-list').innerHTML = ex.map((e) => '<div class="list-row"><span style="flex:1">' + esc(e.type) + ' · ' + (+e.min) + ' min</span><span class="mono small muted">' + esc(e.t) + '</span></div>').join('') || '<div class="small muted">No workouts yet today. A 30-minute walk completes the challenge.</div>';
 
-  // plan + tomorrow
-  const plan = S.plan, dd = dietDayOf(c), tmr = dd % 4 + 1, hasPlan = planHas(plan);
-  $('#pl-eyebrow').textContent = 'Today’s plan · day ' + dd + ' of 4'; $('#pl-h').textContent = 'From ' + COACH;
-  $('#plan-today').innerHTML = hasPlan ? MEALS.map((m, i) => '<div style="display:grid;grid-template-columns:96px minmax(0,1fr);gap:12px;padding:10px 0;border-bottom:1px solid var(--line)"><span class="eyebrow" style="padding-top:3px">' + m + '</span><span>' + (plan[dd - 1][i] ? esc(plan[dd - 1][i]) : '<span class="muted">Not set</span>') + '</span></div>').join('')
-    : '<div class="empty">' + esc(COACH) + ' hasn’t added your diet plan yet. It shows up here as soon as she does.</div>';
+  // diet (a fresh one every 4 days) + tomorrow
+  const diet = S.diet, dn = diet ? diffDays(diet.start_date, TODAY) + 1 : 0;
+  $('#pl-eyebrow').textContent = !diet ? 'Your diet' : dn <= 4 ? 'Your diet · day ' + dn + ' of 4' : 'Your diet · new one due';
+  $('#pl-h').textContent = 'From ' + COACH;
+  $('#plan-today').innerHTML = diet ? dietHtml(diet, 96)
+    + '<div class="diet-foot"><span class="diet-dots" aria-hidden="true">' + [1, 2, 3, 4].map((k) => '<i class="' + (k < dn ? 'past' : k === dn ? 'now' : '') + '"></i>').join('') + '</span><span class="small">'
+    + (dn < 4 ? 'Follow this until ' + fmtDay(addDays(diet.start_date, 3)) + '. New diet from ' + fmtDay(addDays(diet.start_date, 4)) + '.' : dn === 4 ? 'Last day of this diet. Your new diet starts tomorrow.' : esc(COACH) + ' will send your next diet soon. Keep following this one until then.') + '</span></div>'
+    : '<div class="empty">' + esc(COACH) + ' hasn’t added your diet yet. It shows up here as soon as she does.</div>';
   const items = [];
-  if (hasPlan && plan[tmr - 1][0]) items.push('Day ' + tmr + ' breakfast: ' + plan[tmr - 1][0]);
+  if (diet && dn === 4) items.push('A new diet starts tomorrow');
   items.push('Weigh in to reach a ' + (logged ? streak + 1 : streak ? streak + 1 : 1) + '-day streak');
   const u = detoxUntil(c) - 1; if (u >= 0 && u <= 3) items.push(u === 0 ? 'Detox day tomorrow' : 'Detox in ' + (u + 1) + ' days');
   $('#tomorrow').innerHTML = '<div class="tmr"><span class="eyebrow">Coming up tomorrow</span><ul>' + items.map((i) => '<li>' + esc(i) + '</li>').join('') + '</ul></div>';
+  renderLiquids();
 
   // challenges
   const ch = [['water', 'Drink 10 glasses', water, 10, 'glasses', 'var(--water)'], ['meals', 'Log 3 meals', Math.min(meals.length, 3), 3, 'meals', 'var(--ember)'], ['move', 'Move for 30 minutes', Math.min(exMin, 30), 30, 'min', 'var(--slate)']];
@@ -634,14 +642,31 @@ function renderClientHealth() {
   $('#bt-h').textContent = tl ? 'Report from ' + fmtDay(tl.d) : 'No reports yet';
   $('#bt-view').innerHTML = testsHtml(S.tests, S.reportUrls);
 }
+function dietHtml(diet, w) {
+  const m = diet.meals || [];
+  return MEALS.map((name, i) => '<div class="diet-row" style="grid-template-columns:' + w + 'px minmax(0,1fr)"><span class="eyebrow" style="padding-top:3px">' + name + '</span><span style="white-space:pre-line">' + (m[i] && String(m[i]).trim() ? esc(m[i]) : '<span class="muted">Not set</span>') + '</span></div>').join('')
+    + (diet.notes ? '<div class="notice" style="margin-top:12px"><strong>Note:</strong> <span style="white-space:pre-line">' + esc(diet.notes) + '</span></div>' : '');
+}
+const TICK = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" style="stroke-width:3" d="M4 12.5l5 5L20 6.5"/></svg>';
+function renderLiquids() {
+  const L = S.liquids || [], T = S.ticked || new Set(), n = L.filter((x) => T.has(x.id)).length;
+  $('#lq-h').textContent = L.length ? n + ' of ' + L.length + ' taken today' : 'Daily liquids';
+  $('#lq-list').innerHTML = L.length ? L.map((x) => { const on = T.has(x.id);
+    return '<button class="lq' + (on ? ' on' : '') + '" type="button" role="checkbox" aria-checked="' + on + '" data-liquid="' + esc(x.id) + '"><span class="lq-box">' + TICK + '</span><span class="lq-t"><strong>' + esc(x.name) + '</strong>' + (x.when_text ? '<span class="small muted">' + esc(x.when_text) + '</span>' : '') + '</span></button>'; }).join('')
+    : '<div class="empty">' + esc(COACH) + ' hasn’t added your liquids yet.</div>';
+  $('#lq-tip').textContent = !L.length ? '' : n >= L.length ? 'All done for today.' : 'Tick each one as you take it. +2 stars when you finish the list.';
+}
 function renderClientMsgs() {
   if (!S.me) return;
   const fam = S.threads.filter((t) => t.kind === 'family');
-  const opts = [{ id: S.dmId, label: COACH }].concat(fam.map((t) => ({ id: t.id, label: t.title + ' · family' })));
-  $('#c-threads').innerHTML = opts.length > 1 ? opts.map((o) => '<button class="chip" type="button" data-thread="' + esc(o.id) + '" aria-pressed="' + (o.id === S.openThread) + '">' + esc(o.label) + '</button>').join('') : '';
+  const opts = [{ id: S.dmId, label: COACH }, { id: S.asstId, label: 'Assistant' }].concat(fam.map((t) => ({ id: t.id, label: t.title + ' · family' })));
+  const fresh = (id) => { const t = S.threads.find((x) => x.id === id); return t && t.last_from_staff && t.last_text && id !== S.openThread && S.seen[id] !== t.last_at; };
+  $('#c-threads').innerHTML = opts.map((o) => '<button class="chip" type="button" data-thread="' + esc(o.id) + '" aria-pressed="' + (o.id === S.openThread) + '">' + esc(o.label) + (fresh(o.id) ? '<span class="dot-new" style="margin-left:8px"></span>' : '') + '</button>').join('');
   const th = S.threads.find((t) => t.id === S.openThread);
-  $('#ms-h').textContent = !th || th.kind === 'dm' ? 'Chat with ' + COACH : th.title;
-  paintThread('#c-thread', S.openThread, 'No messages yet. Say hello to ' + COACH + '.');
+  if (th) S.seen[th.id] = th.last_at;
+  const asst = S.openThread === S.asstId;
+  $('#ms-h').textContent = th && th.kind === 'family' ? th.title : asst ? 'Chat with the assistant' : 'Chat with ' + COACH;
+  paintThread('#c-thread', S.openThread, 'No messages yet. Say hello to ' + (asst ? 'the assistant' : COACH) + '.');
 }
 $('#hs-agree').addEventListener('click', () => queue(async () => { fixErr(await S.sb.rpc('give_health_consent')); await loadClient(); renderClient(); toast('Blood test tracking is on'); }));
 $('#bt-toggle').addEventListener('click', (e) => { const f = $('#bt-form'); f.hidden = !f.hidden; e.currentTarget.setAttribute('aria-expanded', String(!f.hidden)); e.currentTarget.textContent = f.hidden ? 'Add a result' : 'Cancel'; if (!f.hidden) { $('#bt-d').value = TODAY; $('#bt-d').max = TODAY; $('#bt-a').focus(); } });
@@ -680,23 +705,28 @@ $('#c-comp').addEventListener('submit', (e) => {
 /* ================================================================== */
 async function loadStaff() {
   const since = addDays(TODAY, -120);
-  const [c, p, w, d, pl, t] = await Promise.all([
+  const [c, p, w, d, dt, t, lq, tk] = await Promise.all([
     S.sb.from('clients').select('*').order('name'),
     S.sb.from('profiles').select('id,username,role,display_name,must_change_pw'),
-    allRows(() => S.sb.from('weights').select('client_id,d,kg').gte('d', since).order('d').order('client_id')),
+    allRows(() => S.sb.from('weights').select('client_id,d,kg,at').gte('d', since).order('d').order('client_id')),
     S.sb.from('day_logs').select('*').eq('d', TODAY),
-    S.sb.from('diet_plans').select('client_id,days'),
-    S.sb.from('blood_tests').select('*').order('d')
+    S.sb.from('diets').select('id,client_id,start_date,meals,notes').order('start_date'),
+    S.sb.from('blood_tests').select('*').order('d'),
+    S.sb.from('liquids').select('id,client_id,name,when_text,sort').eq('active', true).order('sort'),
+    S.sb.from('liquid_ticks').select('client_id,liquid_id,at').eq('d', TODAY)
   ]);
-  [c, p, w, d, pl, t].forEach(fixErr);
-  S.clients = c.data || []; S.profiles = {}; S.allWeights = {}; S.days = {}; S.plans = {}; S.allTests = {};
+  [c, p, w, d, dt, t, lq, tk].forEach(fixErr);
+  S.clients = c.data || []; S.profiles = {}; S.allWeights = {}; S.days = {}; S.diets = {}; S.allTests = {}; S.liq = {}; S.ticks = {};
   (p.data || []).forEach((x) => { S.profiles[x.id] = x; });
-  (w.data || []).forEach((x) => { (S.allWeights[x.client_id] = S.allWeights[x.client_id] || []).push({ d: x.d, v: num(x.kg) }); });
+  (w.data || []).forEach((x) => { (S.allWeights[x.client_id] = S.allWeights[x.client_id] || []).push({ d: x.d, v: num(x.kg), at: x.at }); });
   (d.data || []).forEach((x) => { S.days[x.client_id] = x; });
-  (pl.data || []).forEach((x) => { S.plans[x.client_id] = x.days; });
+  (dt.data || []).forEach((x) => { (S.diets[x.client_id] = S.diets[x.client_id] || []).push(x); });
   (t.data || []).forEach((x) => { (S.allTests[x.client_id] = S.allTests[x.client_id] || []).push(x); });
+  (lq.data || []).forEach((x) => { (S.liq[x.client_id] = S.liq[x.client_id] || []).push(x); });
+  (tk.data || []).forEach((x) => { (S.ticks[x.client_id] = S.ticks[x.client_id] || {})[x.liquid_id] = x.at; });
   await loadThreads();
-  if (!S.kThread || !S.threads.find((x) => x.id === S.kThread)) { const wt = S.threads.find((x) => !x.last_from_staff) || S.threads[0]; S.kThread = wt ? wt.id : null; }
+  const mine = inboxThreads();
+  if (!S.kThread || !mine.find((x) => x.id === S.kThread)) { const wt = mine.find((x) => !x.last_from_staff) || mine[0]; S.kThread = wt ? wt.id : null; }
   await loadMsgs(S.kThread);
 }
 let staffBusy = false;
@@ -706,8 +736,19 @@ async function refreshStaff() {
 }
 const wsOf = (c) => S.allWeights[c.id] || [];
 const profOf = (c) => S.profiles[c.user_id] || {};
-const waitingThreads = () => S.threads.filter((t) => !t.last_from_staff);
+/* the coach's own inbox is her chats and family groups; she can also look at the assistant's chats */
+const inboxKinds = () => (isCoach() ? (S.ibox === 'asst' ? ['asst'] : ['dm', 'family']) : ['asst', 'family']);
+const inboxThreads = () => S.threads.filter((t) => inboxKinds().indexOf(t.kind) > -1);
+const waitingThreads = () => S.threads.filter((t) => !t.last_from_staff && (!isCoach() || t.kind !== 'asst'));
 const threadName = (t) => (t.kind === 'family' ? t.title : ((S.clients.find((c) => c.id === t.client_id) || {}).name || t.title));
+const curDiet = (c) => { const a = (S.diets[c.id] || []).filter((x) => x.start_date <= TODAY); return a[a.length - 1] || null; };
+const dietDay = (dt) => diffDays(dt.start_date, TODAY) + 1;
+const liqOf = (c) => S.liq[c.id] || [];
+const liqDone = (c) => { const T = S.ticks[c.id] || {}; return liqOf(c).filter((x) => T[x.id]).length; };
+const tmin = (t) => { const m = /^(\d+):(\d+)\s*(AM|PM)$/i.exec(String(t || '').trim()); if (!m) return -1; let h = +m[1] % 12; if (/pm/i.test(m[3])) h += 12; return h * 60 + +m[2]; };
+const isoDay = (iso) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+const isoMin = (iso) => { const x = new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }); return +x.slice(0, 2) * 60 + +x.slice(3, 5); };
+const minLabel = (m) => (m < 0 ? 'TODAY' : ((Math.floor(m / 60) + 11) % 12 + 1) + ':' + pad(m % 60) + (m < 720 ? ' AM' : ' PM'));
 async function coachUpdate(id, patch, msg) {
   if (!isCoach()) return false;
   const { data, error } = await S.sb.from('clients').update(patch).eq('id', id).select('id');
@@ -725,6 +766,7 @@ function setTab(id) {
   S.tab = id; lsSet('sf-tab-' + S.role, id);
   ['today', 'clients', 'messages', 'diet', 'plans'].forEach((k) => { $('#p-' + k).hidden = k !== id; });
   document.querySelectorAll('.stab').forEach((b) => { const on = b.dataset.tab === id; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
+  document.querySelectorAll('#sbar button').forEach((b) => b.classList.toggle('on', b.dataset.tab === id));
   if (id === 'messages') { const th = $('#k-thread'); th.scrollTop = th.scrollHeight; }
 }
 
@@ -740,10 +782,69 @@ function renderStaff() {
     .map((k) => (k[0] ? '<button class="kpi" type="button" data-tab="' + k[0] + '">' : '<div class="kpi">') + '<strong class="num ' + k[3] + '">' + k[1] + '</strong><span class="small muted">' + k[2] + '</span>' + (k[0] ? '</button>' : '</div>')).join('');
   const counts = { today: tasks.length, messages: waiting };
   $('#stabs').innerHTML = staffTabs().map((t) => '<button class="stab" type="button" role="tab" id="t-' + t[0] + '" aria-controls="p-' + t[0] + '" data-tab="' + t[0] + '">' + t[1] + (counts[t[0]] ? '<span class="cnt">' + counts[t[0]] + '</span>' : '') + '</button>').join('');
+  const SB = { today: ['M3 11l9-7 9 7v9H3z', isCoach() ? 'Today' : 'Tasks'], clients: [ICONS.users, 'Clients'], messages: [ICONS.chat, 'Chat'], diet: [G.leaf, 'Diets'], plans: [ICONS.clock, 'Plans'] };
+  $('#sbar').innerHTML = staffTabs().map((t) => '<button type="button" data-tab="' + t[0] + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="' + SB[t[0]][0] + '"/></svg>' + SB[t[0]][1] + (counts[t[0]] ? '<span class="cnt">' + counts[t[0]] + '</span>' : '') + '</button>').join('');
   setTab(S.tab || 'today');
-  renderTasks(tasks); renderCheckins(); renderClientsTable(); renderInbox(); renderGroupPeople();
+  renderTasks(tasks); renderCheckins(); renderQuick(); renderPhotos(); renderWeek(); renderActivity(); renderW7();
+  renderClientsTable(); renderInbox(); renderGroupPeople();
   if (isCoach()) renderDiet();
   renderPlans();
+}
+function renderQuick() {
+  $('#k-quick').innerHTML = (isCoach() ? '<button class="btn" type="button" data-first-client="1">Add client</button>' : '')
+    + '<button class="ghost" type="button" data-open-bc="1">Broadcast a message</button>'
+    + (isCoach() ? '<button class="ghost" type="button" data-tab="diet">Write a diet</button>' : '<button class="ghost" type="button" data-tab="messages">Open inbox</button>');
+}
+/* every meal photo sent today, across all clients */
+async function renderPhotos() {
+  const items = []; S.clients.forEach((c) => (((S.days[c.id] || {}).photos) || []).forEach((ph) => items.push({ c, ph })));
+  $('#ph-h').textContent = items.length ? items.length + ' photo' + (items.length > 1 ? 's' : '') + ' today' : 'Today’s photos';
+  const box = $('#k-photos'), sig = items.map((x) => x.ph.path).join();
+  if (!items.length) { box.dataset.sig = ''; box.innerHTML = '<div class="empty" style="grid-column:1/-1">No meal photos yet today. They show up here as clients upload them.</div>'; return; }
+  if (box.dataset.sig === sig) return;
+  await loadPhotoUrls(items.map((x) => x.ph.path));
+  box.dataset.sig = sig;
+  box.innerHTML = items.slice().reverse().map((x) => photoFig(x.ph, x.c.name + ' · ' + x.ph.t, first(x.c.name) + ' · ' + x.ph.t)).join('');
+}
+function photoFig(ph, cap, label) {
+  return S.photoUrls[ph.path] ? '<figure><button class="ph-btn" type="button" data-zoom="' + esc(ph.path) + '" data-cap="' + esc(cap) + '" aria-label="Enlarge photo, ' + esc(cap) + '"><img loading="lazy" src="' + esc(S.photoUrls[ph.path]) + '" alt="Meal photo, ' + esc(cap) + '"></button><figcaption>' + esc(label) + '</figcaption></figure>' : '';
+}
+function renderWeek() {
+  const from = addDays(TODAY, -7), rows = [];
+  S.clients.forEach((c) => { const ws = wsOf(c); if (ws.length < 2) return;
+    const before = ws.filter((x) => x.d <= from), base = before.length ? before[before.length - 1] : ws[0], cur = ws[ws.length - 1];
+    if (cur.d > from && base !== cur) rows.push({ c, loss: base.v - cur.v }); });
+  const top = rows.filter((x) => x.loss > 0.05).sort((a, b) => b.loss - a.loss).slice(0, 3);
+  const st = S.clients.map((c) => ({ c, n: liveStreak(c) })).filter((x) => x.n >= 2).sort((a, b) => b.n - a.n).slice(0, 3);
+  $('#k-week').innerHTML = (top.length || st.length)
+    ? (top.length ? '<span class="eyebrow">Most weight lost</span>' + top.map((x) => '<div class="wk-row"><span>' + esc(x.c.name) + '</span><strong class="num" style="color:var(--forest)">−' + x.loss.toFixed(1) + ' kg</strong></div>').join('') : '')
+      + (st.length ? '<span class="eyebrow" style="display:block;margin-top:' + (top.length ? 14 : 0) + 'px">Longest streaks</span>' + st.map((x) => '<div class="wk-row"><span>' + esc(x.c.name) + '</span><strong class="num">' + x.n + ' days</strong></div>').join('') : '')
+    : '<div class="small muted">Leaders show up here after a few days of weigh-ins.</div>';
+}
+function renderActivity() {
+  const ev = [];
+  S.clients.forEach((c) => {
+    const ws = wsOf(c), lw = ws[ws.length - 1], d = S.days[c.id];
+    if (lw && lw.d === TODAY && c.last_log_date === TODAY) ev.push({ m: lw.at && isoDay(lw.at) === TODAY ? isoMin(lw.at) : -1, c, t: 'weighed in at ' + lw.v.toFixed(1) + ' kg' });
+    if (d) {
+      (d.meals || []).forEach((x) => ev.push({ m: tmin(x.t), c, t: 'logged ' + x.n }));
+      (d.exercise || []).forEach((x) => ev.push({ m: tmin(x.t), c, t: 'did ' + (+x.min) + ' min of ' + String(x.type).toLowerCase() }));
+      (d.photos || []).forEach((x) => ev.push({ m: tmin(x.t), c, t: 'sent a meal photo' }));
+      if ((d.water || 0) >= 10) ev.push({ m: -1, c, t: 'finished all 10 glasses of water' });
+    }
+    const L = liqOf(c), T = S.ticks[c.id] || {};
+    if (L.length && L.every((x) => T[x.id])) ev.push({ m: Math.max(...L.map((x) => isoMin(T[x.id]))), c, t: 'ticked all ' + L.length + ' liquids' });
+  });
+  inboxThreads().forEach((t) => { const c = S.clients.find((x) => x.id === t.client_id); if (c && !t.last_from_staff && t.last_text && isoDay(t.last_at) === TODAY) ev.push({ m: isoMin(t.last_at), c, t: 'sent a message: “' + t.last_text + '”' }); });
+  ev.sort((a, b) => b.m - a.m);
+  $('#ac2-h').textContent = ev.length ? ev.length + ' update' + (ev.length > 1 ? 's' : '') + ' today' : 'Activity';
+  $('#k-activity').innerHTML = ev.length ? ev.slice(0, 14).map((x) => '<div class="act"><span class="mono muted">' + minLabel(x.m) + '</span><span class="avatar" style="width:28px;height:28px;font-size:10px">' + esc(initials(x.c.name)) + '</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><button class="linkbtn" style="padding:0;text-decoration:none;color:var(--ink);font-weight:700" type="button" data-pick="' + esc(x.c.id) + '">' + esc(first(x.c.name)) + '</button> ' + esc(x.t) + '</span></div>').join('')
+    : '<div class="empty">Nothing logged yet today. Weigh-ins, meals, photos and liquids show up here as they happen.</div>';
+}
+function renderW7() {
+  const n = S.clients.length, days = []; for (let i = 6; i >= 0; i--) days.push(addDays(TODAY, -i));
+  const cnt = days.map((d) => S.clients.filter((c) => wsOf(c).some((x) => x.d === d)).length), max = Math.max(n, 1);
+  $('#k-w7').innerHTML = days.map((d, i) => '<div title="' + fmtDay(d) + ': ' + cnt[i] + ' of ' + n + ' weighed in"><b class="num">' + cnt[i] + '</b><i class="' + (cnt[i] ? '' : 'zero') + '" style="height:' + Math.round(cnt[i] / max * 86) + 'px"></i><span>' + (i === 6 ? 'Today' : DOW[parse(d).getDay()]) + '</span></div>').join('');
 }
 
 /* follow-ups: what needs doing today, most urgent first */
@@ -759,6 +860,15 @@ function buildTasks() {
     if (pl <= 3) out.push({ p: pl < 0 ? 1 : 2, title: c.name + '’s plan ' + (pl < 0 ? 'ended ' + (-pl) + ' day' + (pl === -1 ? '' : 's') + ' ago' : pl === 0 ? 'ends today' : 'ends in ' + pl + ' day' + (pl === 1 ? '' : 's')), sub: c.tier + ' · ' + fmtDay(c.plan_end), acts: [['Send reminder', 'data-remind="' + esc(c.id) + '"', 'ghost']].concat(isCoach() ? [['Renew 30 days', 'data-renew="' + esc(c.id) + '"', 'ghost']] : []) });
     const dx = detoxUntil(c);
     if (dx <= 1) out.push({ p: dx < 0 ? 2 : 3, title: c.name + ': detox day ' + (dx < 0 ? 'overdue by ' + (-dx) + ' day' + (dx === -1 ? '' : 's') : dx === 0 ? 'today' : 'tomorrow'), sub: 'Every ' + c.detox_freq + ' days · ' + c.detox_done + ' done', acts: isCoach() ? [['Mark done', 'data-detox="' + esc(c.id) + '"', 'ghost']] : [['Message', 'data-msg-client="' + esc(c.id) + '" data-draft="detox"', 'ghost']] });
+    if (c.consent_at) {
+      const dt = curDiet(c), dn = dt ? dietDay(dt) : 0, wd = [['Write diet', 'data-edit-plan="' + esc(c.id) + '"', 'ghost']];
+      if (isCoach() && !dt) out.push({ p: 2, title: c.name + ' has no diet yet', sub: 'Write their first 4-day diet', acts: wd });
+      else if (isCoach() && dn > 4) out.push({ p: 1, title: c.name + ' needs a new diet', sub: 'The last one ended ' + fmtDay(addDays(dt.start_date, 3)), acts: wd });
+      else if (isCoach() && dn === 4) out.push({ p: 3, title: c.name + '’s diet ends today', sub: 'The next one starts ' + fmtDay(addDays(dt.start_date, 4)), acts: wd });
+      const L = liqOf(c).length, D = liqDone(c);
+      if (L && D < L && hr >= 14) out.push({ p: 3, title: c.name + ' hasn’t ticked today’s liquids', sub: D + ' of ' + L + ' taken so far', acts: [['Message', 'data-msg-client="' + esc(c.id) + '" data-draft="liquids"', 'ghost']] });
+      if (isCoach() && L && c.liquids_updated && diffDays(c.liquids_updated, TODAY) >= 30) out.push({ p: 3, title: c.name + '’s liquids list is a month old', sub: 'Last updated ' + fmtShort(c.liquids_updated), acts: [['Update list', 'data-pick="' + esc(c.id) + '" data-dmode="liquids"', 'ghost']] });
+    }
     const ts = S.allTests[c.id] || [], tl = ts[ts.length - 1];
     if (tl && diffDays(String(tl.created_at).slice(0, 10), TODAY) <= 7) { const bad = TESTS.filter((T) => tl[T[0]] != null && T[3](+tl[T[0]]) === 2).map((T) => T[1] + ' ' + (+tl[T[0]])); if (bad.length) out.push({ p: 2, title: c.name + ': blood test needs a look', sub: bad.join(' · ') + ' · report ' + fmtShort(tl.d), acts: [['View', 'data-pick="' + esc(c.id) + '"', 'ghost']] }); }
   });
@@ -797,12 +907,18 @@ function renderClientsTable() {
   $('#tbl-empty').hidden = !!list.length;
   $('#tbl-empty').textContent = cs.length ? 'No clients match.' : (isCoach() ? 'No clients yet. Tap Add client to create the first login.' : 'No clients yet.');
   $('#tbody').innerHTML = list.map((c) => { const ago = lastLogAgo(c), lp = lossPctOf(c, wsOf(c)), d = S.days[c.id], pr = profOf(c), pl = planLeft(c);
-    const today = d ? (d.water || 0) + '/10 water · ' + (d.meals || []).length + ((d.meals || []).length === 1 ? ' meal' : ' meals') + ((d.photos || []).length ? ' · ' + d.photos.length + ' photo' + (d.photos.length > 1 ? 's' : '') : '') : '<span class="muted">Nothing yet</span>';
+    const lqn = liqOf(c).length, lqt = lqn ? ' · ' + liqDone(c) + '/' + lqn + ' liquids' : '';
+    const today0 = d ? (d.water || 0) + '/10 water · ' + (d.meals || []).length + ((d.meals || []).length === 1 ? ' meal' : ' meals') + ((d.photos || []).length ? ' · ' + d.photos.length + ' photo' + (d.photos.length > 1 ? 's' : '') : '') : '<span class="muted">Nothing yet</span>';
+    const today = d ? today0 + lqt : (lqn ? '<span class="muted">0/' + lqn + ' liquids</span>' : today0);
     return '<tr class="click' + (c.id === S.drawer ? ' sel' : '') + '" data-row="' + esc(c.id) + '"><td><span style="display:flex;align-items:center;gap:10px"><span class="avatar">' + esc(initials(c.name)) + '</span><span style="display:flex;flex-direction:column"><button class="linkbtn" style="padding:0;text-decoration:none;color:var(--ink);font-weight:700" type="button" data-pick="' + esc(c.id) + '">' + esc(c.name) + '</button><span class="small muted">@' + esc(pr.username || '') + (!c.consent_at ? ' · not signed in yet' : pr.must_change_pw ? ' · temporary password' : '') + '</span></span></span></td>'
       + '<td class="num">' + curOf(c, wsOf(c)).toFixed(1) + ' kg</td><td>' + spark(wsOf(c)) + '</td><td class="num"><span class="minibar"><i style="width:' + Math.max(lp / maxL * 100, 0).toFixed(0) + '%"></i></span>' + lp.toFixed(1) + '%</td>'
       + '<td><span class="tag ' + tierCls(c.tier) + '">' + esc(c.tier) + '</span></td><td class="num">' + liveStreak(c) + (liveStreak(c) === 1 ? ' day' : ' days') + '</td><td class="small">' + today + '</td>'
       + '<td><span class="status ' + (ago >= 2 ? 'over' : 'ok') + '" style="text-align:left">' + (ago === 0 ? 'Today' : ago === 1 ? 'Yesterday' : ago > 900 ? 'Never' : ago + ' days ago') + '</span></td>'
       + '<td><span class="status ' + (pl < 0 ? 'over' : pl <= 7 ? 'soon' : 'ok') + '" style="text-align:left">' + (pl < 0 ? 'Ended ' + fmtShort(c.plan_end) : fmtShort(c.plan_end)) + '</span></td></tr>'; }).join('');
+  $('#cl-cards').innerHTML = list.map((c) => { const ago = lastLogAgo(c), lp = lossPctOf(c, wsOf(c)), d = S.days[c.id], pr = profOf(c), lqn = liqOf(c).length;
+    const bits = []; if (d) { bits.push((d.water || 0) + '/10 water'); bits.push((d.meals || []).length + ((d.meals || []).length === 1 ? ' meal' : ' meals')); if ((d.photos || []).length) bits.push(d.photos.length + (d.photos.length === 1 ? ' photo' : ' photos')); }
+    if (lqn) bits.push(liqDone(c) + '/' + lqn + ' liquids');
+    return '<button class="cl-card" type="button" data-pick="' + esc(c.id) + '"><span class="avatar">' + esc(initials(c.name)) + '</span><span class="cl-c-t"><strong>' + esc(c.name) + '</strong><span class="small">' + curOf(c, wsOf(c)).toFixed(1) + ' kg · ' + lp.toFixed(1) + '% lost · ' + liveStreak(c) + '-day streak</span><span class="small muted">' + (bits.length ? esc(bits.join(' · ')) : (!c.consent_at ? 'Not signed in yet' : 'Nothing logged today')) + '</span></span><span class="status ' + (ago >= 2 ? 'over' : 'ok') + '">' + (ago === 0 ? 'Today' : ago === 1 ? 'Yesterday' : ago > 900 ? 'Never' : ago + 'd ago') + '</span></button>'; }).join('');
   renderCred();
 }
 function renderCred() {
@@ -852,7 +968,7 @@ async function renderDrawer() {
   const body = $('#drawer-body'); if (!body) return;
   const c = S.clients.find((x) => x.id === S.drawer); if (!c) { closeDrawer(); return; }
   const ws = wsOf(c), d = S.days[c.id] || emptyDay(), meals = d.meals || [], ex = d.exercise || [], exMin = ex.reduce((a, e) => a + (+e.min || 0), 0);
-  const kcal = meals.reduce((a, m) => a + (+m.k || 0), 0), ago = lastLogAgo(c), bs = c.badges || {}, plan = S.plans[c.id], dd = dietDayOf(c), pr = profOf(c), ts = S.allTests[c.id] || [];
+  const kcal = meals.reduce((a, m) => a + (+m.k || 0), 0), ago = lastLogAgo(c), bs = c.badges || {}, dt = curDiet(c), dn = dt ? dietDay(dt) : 0, pr = profOf(c), ts = S.allTests[c.id] || [];
   await Promise.all([loadPhotoUrls((d.photos || []).map((p) => p.path)), loadReportUrls(ts.slice(-1))]);
   if (!$('#drawer-body')) return;
   const keep = body.scrollTop, mode = S.drawerMode;
@@ -880,15 +996,29 @@ async function renderDrawer() {
     + '<div class="card" style="padding:18px;gap:12px;animation:none"><span class="eyebrow">Today so far</span>'
     + [['Water', (d.water || 0) + ' / 10 glasses', (d.water || 0) / 10], ['Meals', meals.length + ' logged · ' + kcal.toLocaleString('en-IN') + ' of ' + c.kcal_target + ' kcal', Math.min(meals.length / 3, 1)], ['Movement', exMin + ' / 30 min', Math.min(exMin / 30, 1)]].map((r) => '<div style="display:flex;flex-direction:column;gap:6px"><div style="display:flex;justify-content:space-between" class="small"><strong>' + r[0] + '</strong><span class="muted num">' + r[1] + '</span></div><div class="track"><div class="fill' + (r[2] >= 1 ? ' done' : '') + '" style="width:' + (r[2] * 100).toFixed(0) + '%"></div></div></div>').join('')
     + (meals.length ? '<div class="small muted">' + meals.map((m) => esc(m.n)).join(' · ') + '</div>' : '')
-    + ((d.photos || []).length ? '<div class="photos">' + d.photos.map((p) => S.photoUrls[p.path] ? '<figure><img src="' + esc(S.photoUrls[p.path]) + '" alt="Meal photo at ' + esc(p.t) + '"><figcaption>' + esc(p.t) + '</figcaption></figure>' : '').join('') + '</div>' : '') + '</div>'
+    + ((d.photos || []).length ? '<div class="photos big">' + d.photos.map((ph) => photoFig(ph, c.name + ' · ' + ph.t, ph.t)).join('') + '</div>' : '') + '</div>'
     + (ts.length ? '<div class="card" style="padding:18px;gap:12px;animation:none"><span class="eyebrow">Blood test · ' + fmtShort(ts[ts.length - 1].d) + '</span>' + testsHtml(ts, S.reportUrls) + '</div>' : (c.health_consent_at ? '' : '<div class="small muted">Blood tests: not shared yet.</div>'))
-    + '<div class="card" style="padding:18px;gap:10px;animation:none"><span class="eyebrow">Diet · day ' + dd + ' of 4</span>' + (planHas(plan) ? MEALS.map((m, i) => '<div style="display:grid;grid-template-columns:86px minmax(0,1fr);gap:10px;font-size:14px"><span class="eyebrow" style="padding-top:3px">' + m + '</span><span>' + (plan[dd - 1][i] ? esc(plan[dd - 1][i]) : '<span class="muted">Not set</span>') + '</span></div>').join('') : '<span class="small muted">No diet plan yet.</span>') + '</div>'
+    + '<div class="card" style="padding:18px;gap:10px;animation:none"><span class="eyebrow">Meal photos · earlier this week</span><div id="dr-week"><span class="small muted">Loading…</span></div></div>'
+    + '<div class="card" style="padding:18px;gap:6px;animation:none"><div class="card-h"><span class="eyebrow">' + (dt ? (dn <= 4 ? 'Diet · day ' + dn + ' of 4' : 'Diet · new one due') : 'Diet') + '</span>' + (isCoach() ? '<button class="ghost" type="button" data-edit-plan="' + esc(c.id) + '">' + (dt ? 'Write new diet' : 'Write diet') + '</button>' : '') + '</div>' + (dt ? dietHtml(dt, 86) : '<span class="small muted">No diet yet.</span>') + '</div>'
+    + liquidsCard(c)
     + '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="eyebrow" style="width:100%">Badges</span>' + BADGES.map((b) => '<span style="display:flex;align-items:center;gap:6px" class="small"><svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true"><path ' + (bs[b.k] ? 'style="fill:' + b.fill + '"' : 'class="hex-l"') + ' d="' + HEX + '"/><g transform="translate(20 20)"><path class="gl' + (bs[b.k] ? ' on' : '') + '" d="' + b.g + '"/></g></svg>' + (bs[b.k] ? b.name : '<span class="muted">' + b.name + '</span>') + '</span>').join('') + '</div>'
     + '<div class="small">Plan ' + fmtShort(c.plan_start) + ' to ' + fmtDay(c.plan_end) + (planLeft(c) < 0 ? ' (ended)' : '') + ' · detox every ' + c.detox_freq + ' days · ' + c.kcal_target + ' kcal target</div>';
   if (isCoach()) h += '<div style="display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px"><button class="ghost" style="height:44px" type="button" data-renew="' + esc(c.id) + '">Renew 30 days</button>'
     + (S.rmConfirm === c.id ? '<span class="small" style="align-self:center;flex-basis:100%">Delete ' + esc(first(c.name)) + ', their login and all their logs? This can’t be undone.</span><button class="ghost" style="height:44px" type="button" data-rm-no="1">Keep</button><button class="ghost danger" style="height:44px" type="button" data-rm-yes="' + esc(c.id) + '">Delete for good</button>' : '<button class="ghost danger" style="height:44px" type="button" data-rm="' + esc(c.id) + '">Delete client</button>') + '</div>';
   body.innerHTML = h; body.scrollTop = keep;
   renderChart(c.goal_kg ? num(c.goal_kg) : null, ws, $('#dr-chart'), num(c.start_kg));
+  loadWeekPhotos(c);
+  const lf = $('#lq-edit');
+  if (lf) {
+    $('#lq-add').addEventListener('click', () => { if (document.querySelectorAll('#lq-rows .lq-row').length >= 12) return; $('#lq-rows').insertAdjacentHTML('beforeend', lqRow(['', ''])); const ins = $('#lq-rows').lastElementChild.querySelector('input'); if (ins) ins.focus(); });
+    lf.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const items = [...document.querySelectorAll('#lq-rows .lq-row')].map((r) => { const i = r.querySelectorAll('input'); return { name: i[0].value.trim(), when: i[1].value.trim() }; }).filter((x) => x.name);
+      const r = await S.sb.rpc('set_liquids', { p_client: c.id, p_items: items });
+      if (r.error) { const er = $('#lq-err'); er.textContent = friendly(r.error); er.hidden = false; return; }
+      S.drawerMode = null; toast(items.length ? 'Liquids list saved' : 'Liquids list cleared'); await refreshStaff();
+    });
+  }
   const ef = $('#dr-edit');
   if (ef) ef.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -903,14 +1033,39 @@ async function renderDrawer() {
   });
 }
 
+const lqRow = (r) => '<div class="lq-row"><input class="input" maxlength="60" placeholder="Liquid, e.g. Jeera water" aria-label="Liquid" value="' + esc(r[0]) + '"><input class="input" maxlength="60" placeholder="When, e.g. Before breakfast" aria-label="When to take it" value="' + esc(r[1]) + '"><button class="x" type="button" data-lq-rm="1" aria-label="Remove this liquid"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M6 6l12 12M18 6L6 18"/></svg></button></div>';
+function liquidsCard(c) {
+  const L = liqOf(c), T = S.ticks[c.id] || {};
+  if (isCoach() && S.drawerMode === 'liquids') {
+    const rows = L.length ? L.map((x) => [x.name, x.when_text]) : [['', ''], ['', '']];
+    return '<form class="card" id="lq-edit" style="padding:18px;gap:12px;animation:none" novalidate><span class="eyebrow">Daily liquids for ' + esc(first(c.name)) + '</span><span class="small muted">They see this as a checklist every day and tick each one off.</span><div id="lq-rows" style="display:flex;flex-direction:column;gap:8px">' + rows.map(lqRow).join('') + '</div><button class="ghost" type="button" id="lq-add" style="align-self:flex-start">Add another</button><div class="err" id="lq-err" role="alert" hidden></div><div class="row"><button class="btn" type="submit">Save list</button><button class="ghost" style="height:44px" type="button" data-dmode="" data-for="' + esc(c.id) + '">Cancel</button></div></form>';
+  }
+  return '<div class="card" style="padding:18px;gap:6px;animation:none"><div class="card-h"><span class="eyebrow">Daily liquids' + (L.length ? ' · ' + liqDone(c) + ' of ' + L.length + ' taken today' : '') + '</span>' + (isCoach() ? '<button class="ghost" type="button" data-dmode="liquids" data-for="' + esc(c.id) + '">' + (L.length ? 'Edit list' : 'Add liquids') + '</button>' : '') + '</div>'
+    + (L.length ? L.map((x) => '<div class="lq-view' + (T[x.id] ? ' on' : '') + '"><span class="lq-box">' + TICK + '</span><span><strong>' + esc(x.name) + '</strong>' + (x.when_text ? ' <span class="small muted">' + esc(x.when_text) + '</span>' : '') + '</span></div>').join('') + (c.liquids_updated ? '<span class="small muted" style="padding-top:6px">List last updated ' + fmtShort(c.liquids_updated) + '</span>' : '')
+      : '<span class="small muted">No liquids list yet.</span>') + '</div>';
+}
+async function loadWeekPhotos(c) {
+  const box = $('#dr-week'); if (!box) return;
+  const r = await S.sb.from('day_logs').select('d,photos').eq('client_id', c.id).gte('d', addDays(TODAY, -6)).lt('d', TODAY).order('d', { ascending: false });
+  if (S.drawer !== c.id || !$('#dr-week')) return;
+  const days = ((r.data || [])).filter((x) => (x.photos || []).length);
+  if (r.error || !days.length) { $('#dr-week').innerHTML = '<span class="small muted">' + (r.error ? 'Couldn’t load photos.' : 'No photos in the six days before today.') + '</span>'; return; }
+  await loadPhotoUrls([].concat(...days.map((x) => x.photos.map((ph) => ph.path))));
+  if (S.drawer !== c.id || !$('#dr-week')) return;
+  $('#dr-week').innerHTML = days.map((x) => '<span class="eyebrow" style="display:block;margin:8px 0 6px">' + fmtDay(x.d) + '</span><div class="photos big">' + x.photos.map((ph) => photoFig(ph, c.name + ' · ' + fmtDay(x.d) + ' ' + ph.t, ph.t)).join('') + '</div>').join('');
+}
+
 /* inbox */
 function renderInbox() {
-  const ths = S.threads, waiting = waitingThreads();
+  const ths = inboxThreads(), waiting = ths.filter((t) => !t.last_from_staff), asstView = isCoach() && S.ibox === 'asst';
   $('#ib-count').textContent = waiting.length ? waiting.length + ' waiting for a reply' : 'All caught up';
+  $('#ib-filter').innerHTML = isCoach() ? [['mine', 'My chats'], ['asst', 'Assistant’s chats']].map((f) => '<button class="chip" type="button" data-ibox="' + f[0] + '" aria-pressed="' + ((S.ibox || 'mine') === f[0]) + '">' + f[1] + '</button>').join('') : '';
+  if (S.kThread && !ths.find((t) => t.id === S.kThread)) S.kThread = null;
   $('#k-threads').innerHTML = ths.length ? ths.map((t) => '<button class="th-item" type="button" data-kth="' + esc(t.id) + '" aria-pressed="' + (t.id === S.kThread) + '"><span class="avatar"' + (t.kind === 'family' ? ' style="background:var(--slate);color:#fff"' : '') + '>' + esc(t.kind === 'family' ? 'FG' : initials(threadName(t))) + '</span><span style="flex:1;min-width:0;display:flex;flex-direction:column"><strong style="font-size:14px">' + esc(threadName(t)) + (t.kind === 'family' ? ' <span class="small muted" style="font-weight:500">· family</span>' : '') + '</strong><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(t.last_text || 'No messages yet') + '</span></span>' + (!t.last_from_staff ? '<span class="dot-new" title="Waiting for a reply"></span>' : '') + '</button>').join('')
-    : '<div class="small muted" style="padding:12px">No conversations yet. Open a client’s profile and tap Message.</div>';
+    : '<div class="small muted" style="padding:12px">' + (asstView ? 'No chats between clients and the assistant yet.' : 'No conversations yet. Open a client’s profile and tap Message.') + '</div>';
   const kt = ths.find((t) => t.id === S.kThread);
-  $('#k-thread-h').textContent = kt ? threadName(kt) + (kt.kind === 'family' ? ' · family group' : '') + ' · ' + msgTime(kt.last_at) : '';
+  $('#k-inbox').classList.toggle('open', !!kt && !!S.kOpen);
+  $('#k-thread-h').textContent = kt ? threadName(kt) + (kt.kind === 'family' ? ' · family group' : kt.kind === 'asst' && isCoach() ? ' · with the assistant' : '') + ' · ' + msgTime(kt.last_at) : '';
   $('#k-thread-act').innerHTML = kt && !kt.last_from_staff ? '<button class="ghost" type="button" data-done-thread="' + esc(kt.id) + '">Mark done</button>' : '';
   $('#k-comp').hidden = !kt;
   paintThread('#k-thread', S.kThread, kt ? 'No messages yet. Say hello.' : 'Pick a conversation.');
@@ -923,16 +1078,35 @@ function renderGroupPeople() {
 const DRAFTS = {
   checkin: (c) => 'Hi ' + first(c.name) + ', I haven’t seen your logs for a couple of days. How are you doing? Even a quick weigh-in helps us keep your plan on track.',
   nudge: (c) => 'Good morning ' + first(c.name) + '! Don’t forget your weigh-in today.',
+  liquids: (c) => 'Hi ' + first(c.name) + ', a reminder to take your liquids today and tick them off in the app.',
   detox: (c) => 'Hi ' + first(c.name) + ', your detox day is coming up. Let us know if you have any questions about it.'
 };
 function renewalText(c) { const d = planLeft(c); return 'Hi ' + first(c.name) + ', your ' + c.tier + ' plan ' + (d < 0 ? 'ended on ' : 'ends on ') + fmtDay(c.plan_end) + '. Reply here if you’d like to continue and we’ll renew it for you.'; }
 async function openClientChat(clientId, draft) {
-  const r = await S.sb.rpc('ensure_dm', { p_client: clientId }); if (r.error) { toast(friendly(r.error)); return; }
-  S.kThread = r.data; await loadThreads(); await loadMsgs(S.kThread); closeDrawer();
+  const r = await S.sb.rpc('ensure_chat', { p_client: clientId }); if (r.error) { toast(friendly(r.error)); return; }
+  S.ibox = 'mine'; S.kThread = r.data; S.kOpen = true; await loadThreads(); await loadMsgs(S.kThread); closeDrawer();
   setTab('messages'); renderInbox(); window.scrollTo({ top: 0, behavior: 'smooth' });
   if (draft != null) $('#k-comp-in').value = draft;
   $('#k-comp-in').focus({ preventScroll: true });
 }
+function openBroadcast() { setTab('messages'); const f = $('#bc-form'); f.hidden = false; $('#bc-open').setAttribute('aria-expanded', 'true'); $('#bc-err').hidden = true; window.scrollTo({ top: 0, behavior: 'smooth' }); $('#bc-text').focus({ preventScroll: true }); }
+function closeBroadcast() { $('#bc-form').hidden = true; $('#bc-open').setAttribute('aria-expanded', 'false'); }
+$('#bc-open').addEventListener('click', () => { if ($('#bc-form').hidden) openBroadcast(); else closeBroadcast(); });
+$('#bc-cancel').addEventListener('click', closeBroadcast);
+$('#bc-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const v = $('#bc-text').value.trim(), err = $('#bc-err'), tier = $('#bc-tier').value;
+  const who = S.clients.filter((c) => tier === 'All' || c.tier === tier).length;
+  if (!v) { err.textContent = 'Write the message first.'; err.hidden = false; return; }
+  if (!who) { err.textContent = 'There are no clients in that group.'; err.hidden = false; return; }
+  if (S.bcConfirm !== v + '|' + tier) { S.bcConfirm = v + '|' + tier; err.textContent = 'This goes to ' + who + ' client' + (who > 1 ? 's' : '') + '. Tap Send broadcast again to confirm.'; err.hidden = false; return; }
+  err.hidden = true; const b = $('#bc-go'); b.disabled = true;
+  const r = await S.sb.rpc('broadcast', { p_body: v, p_tier: tier }); b.disabled = false; S.bcConfirm = null;
+  if (r.error) { err.textContent = friendly(r.error); err.hidden = false; return; }
+  $('#bc-text').value = ''; closeBroadcast(); toast('Sent to ' + r.data + ' client' + (r.data === 1 ? '' : 's'));
+  await loadThreads(); await loadMsgs(S.kThread); renderStaff();
+});
+$('#ib-back').addEventListener('click', () => { S.kOpen = false; renderInbox(); });
 $('#k-comp').addEventListener('submit', async (e) => {
   e.preventDefault(); const v = $('#k-comp-in').value.trim(); if (!v || !S.kThread) return;
   $('#k-comp-in').value = '';
@@ -953,42 +1127,52 @@ $('#grp-form').addEventListener('submit', async (e) => {
   S.kThread = r.data; await loadThreads(); await loadMsgs(S.kThread); renderInbox(); toast(title + ' created');
 });
 
-/* diet plans */
-const EMPTY_PLAN = () => [0, 1, 2, 3].map(() => ['', '', '', '']);
+/* diets: the coach writes a fresh one for each client every 4 days */
+function dietStatus(c) {
+  const dt = curDiet(c); if (!dt) return ['over', 'No diet yet', 0];
+  const dn = dietDay(dt);
+  return dn > 4 ? ['over', 'Due ' + (dn - 4) + (dn - 4 === 1 ? ' day ago' : ' days ago'), 1] : dn === 4 ? ['soon', 'Ends today', 2] : ['ok', 'Day ' + dn + ' of 4', 3];
+}
+function fillDiet(dt) { [0, 1, 2, 3].forEach((i) => { $('#dc-m' + i).value = (dt.meals || [])[i] || ''; }); $('#dc-notes').value = dt.notes || ''; }
 function renderDiet() {
-  const cs = S.clients;
-  if (!S.sel || !cs.find((c) => c.id === S.sel)) S.sel = cs[0] ? cs[0].id : null;
+  const cs = S.clients.slice().sort((a, b) => dietStatus(a)[2] - dietStatus(b)[2] || a.name.localeCompare(b.name));
+  if (!S.sel || !cs.find((c) => c.id === S.sel)) { S.sel = cs[0] ? cs[0].id : null; S.dietFor = null; }
   const sc = cs.find((c) => c.id === S.sel), dsel = $('#dc-client');
-  const opts = cs.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + (planHas(S.plans[c.id]) ? '' : ' (no plan yet)') + '</option>').join('');
+  $('#dc-list').innerHTML = cs.length ? cs.map((c) => { const st = dietStatus(c);
+    return '<button class="th-item" type="button" data-diet-client="' + esc(c.id) + '" aria-pressed="' + (c.id === S.sel) + '"><span class="avatar">' + esc(initials(c.name)) + '</span><span style="flex:1;min-width:0;display:flex;flex-direction:column"><strong style="font-size:14px">' + esc(c.name) + '</strong><span class="status ' + st[0] + '" style="text-align:left">' + st[1] + '</span></span></button>'; }).join('')
+    : '<div class="small muted" style="padding:12px">Add a client first.</div>';
+  const opts = cs.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('');
   if (dsel.dataset.sig !== opts) { dsel.innerHTML = opts; dsel.dataset.sig = opts; }
-  if (sc) dsel.value = sc.id;
-  $('#dc-h').textContent = sc ? short(sc.name) + ' · today is day ' + dietDayOf(sc) : 'Diet plan';
-  $('#daytabs').innerHTML = sc ? '<span class="small muted" style="align-self:center;margin-right:10px">Today is</span>' + [1, 2, 3, 4].map((k) => '<button class="daytab" type="button" data-day="' + k + '" aria-pressed="' + (dietDayOf(sc) === k) + '">Day ' + k + '</button>').join('') : '';
-  const grid = $('#plan-grid'), sig = sc ? sc.id + '|' + dietDayOf(sc) + '|' + JSON.stringify(S.plans[sc.id] || null) : '';
-  if (grid.contains(document.activeElement) || grid.dataset.sig === sig) return;
-  grid.dataset.sig = sig;
-  if (!sc) { grid.innerHTML = '<div class="empty" style="grid-column:1/-1">Add a client to build their plan.</div>'; return; }
-  const plan = S.plans[sc.id] || EMPTY_PLAN(), today = dietDayOf(sc);
-  grid.innerHTML = '<div class="plan-lbl"><span class="eyebrow" style="height:18px"></span>' + MEALS.map((m) => '<span>' + m + '</span>').join('') + '</div>'
-    + plan.map((ms, di) => '<div class="plan-col' + (di + 1 === today ? ' on' : '') + '"><span class="eyebrow" style="height:18px;color:' + (di + 1 === today ? 'var(--forest)' : 'var(--muted)') + '">' + (di + 1 === today ? 'Today · Day ' + (di + 1) : 'Day ' + (di + 1)) + '</span>'
-      + ms.map((v, mi) => '<textarea class="ta" maxlength="200" data-plan="' + di + '-' + mi + '" placeholder="' + MEALS[mi] + '…" aria-label="Day ' + (di + 1) + ' ' + MEALS[mi] + '">' + esc(v) + '</textarea>').join('') + '</div>').join('');
+  $('#dc-form').hidden = !sc;
+  if (!sc) { $('#dc-h').textContent = 'Diet'; $('#dc-eyebrow').textContent = 'Diet'; $('#dc-current').innerHTML = '<div class="empty">Add a client to write their diet.</div>'; $('#dc-history').innerHTML = ''; return; }
+  dsel.value = sc.id;
+  const all = S.diets[sc.id] || [], dt = curDiet(sc), dn = dt ? dietDay(dt) : 0, st = dietStatus(sc);
+  $('#dc-h').textContent = sc.name; $('#dc-eyebrow').textContent = 'Diet · ' + st[1];
+  $('#dc-current').innerHTML = dt ? '<div class="notice" style="margin-bottom:6px"><strong>' + (dn <= 4 ? 'Current diet' : 'Last diet') + '</strong> · ' + fmtDay(dt.start_date) + ' to ' + fmtDay(addDays(dt.start_date, 3)) + (dn > 4 ? ' · ' + esc(first(sc.name)) + ' is still following this until you send a new one' : '') + '</div>' + dietHtml(dt, 96)
+    : '<div class="empty">' + esc(first(sc.name)) + ' has no diet yet. Write the first one below.</div>';
+  if (S.dietFor !== sc.id) {
+    S.dietFor = sc.id; fillDiet({ meals: [], notes: '' }); $('#dc-err').hidden = true;
+    $('#dc-start').value = dt && dn <= 4 ? addDays(dt.start_date, 4) : TODAY;
+  }
+  $('#dc-form-h').textContent = 'New diet for ' + first(sc.name);
+  $('#dc-copy').hidden = !all.length;
+  const past = all.slice().reverse().slice(0, 6);
+  $('#dc-history').innerHTML = past.length ? '<span class="eyebrow" style="display:block;margin-bottom:4px">Diets sent to ' + esc(first(sc.name)) + '</span>' + past.map((x) => '<div class="dc-hist"><span style="min-width:0;display:flex;flex-direction:column"><strong style="font-size:14px">' + fmtDay(x.start_date) + ' to ' + fmtDay(addDays(x.start_date, 3)) + (x.start_date > TODAY ? ' · upcoming' : '') + '</strong><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc((x.meals || []).filter(Boolean).join(' · ')) + '</span></span><span style="display:flex;gap:6px"><button class="ghost" type="button" data-diet-reuse="' + esc(x.id) + '">Reuse</button><button class="ghost danger" type="button" data-diet-del="' + esc(x.id) + '">Delete</button></span></div>').join('') : '';
 }
-$('#dc-client').addEventListener('change', (e) => { flushPlan(); S.sel = e.target.value; renderDiet(); });
-let planTimer = null, planPending = null;
-async function flushPlan() {
-  if (!planPending) return; clearTimeout(planTimer);
-  const { id, days } = planPending; planPending = null;
-  const { error } = await S.sb.from('diet_plans').upsert({ client_id: id, days, updated_at: new Date().toISOString() });
-  $('#dc-save').textContent = error ? 'Couldn’t save: ' + friendly(error) : 'Saved. The client sees today’s column.';
-}
-$('#plan-grid').addEventListener('input', (e) => {
-  const ta = e.target.closest('[data-plan]'); if (!ta || !isCoach() || !S.sel) return;
-  const [di, mi] = ta.dataset.plan.split('-').map(Number), id = S.sel;
-  const days = JSON.parse(JSON.stringify(S.plans[id] || EMPTY_PLAN())); days[di][mi] = ta.value.slice(0, 200); S.plans[id] = days;
-  $('#dc-save').innerHTML = '<span class="spin"></span> Saving…';
-  planPending = { id, days }; clearTimeout(planTimer); planTimer = setTimeout(flushPlan, 700);
+$('#dc-client').addEventListener('change', (e) => { S.sel = e.target.value; S.dietFor = null; renderDiet(); });
+$('#dc-copy').addEventListener('click', () => { const all = S.diets[S.sel] || []; if (all.length) { fillDiet(all[all.length - 1]); $('#dc-m0').focus(); } });
+$('#dc-form').addEventListener('submit', async (e) => {
+  e.preventDefault(); if (!isCoach() || !S.sel) return;
+  const err = $('#dc-err'), fail = (m) => { err.textContent = m; err.hidden = false; };
+  const meals = [0, 1, 2, 3].map((i) => $('#dc-m' + i).value.trim()), start = $('#dc-start').value, c = S.clients.find((x) => x.id === S.sel);
+  if (!meals.some(Boolean)) return fail('Write at least one meal.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return fail('Pick the day this diet starts.');
+  err.hidden = true; const b = $('#dc-go'); b.disabled = true; b.innerHTML = '<span class="spin"></span> Sending…';
+  const r = await S.sb.rpc('save_diet', { p_client: S.sel, p_start: start, p_meals: meals, p_notes: $('#dc-notes').value.trim() || null });
+  b.disabled = false; b.textContent = 'Send diet';
+  if (r.error) return fail(friendly(r.error));
+  S.dietFor = null; toast('Diet sent to ' + first(c.name)); await refreshStaff();
 });
-window.addEventListener('beforeunload', () => { if (planPending) flushPlan(); });
 
 /* renewals + detox */
 function renderPlans() {
@@ -1008,7 +1192,7 @@ function renderPlans() {
 async function loadThreads() { const r = fixErr(await S.sb.from('threads').select('*').order('last_at', { ascending: false })); S.threads = r.data || []; }
 async function loadMsgs(tid) {
   if (!tid) return;
-  const r = fixErr(await S.sb.from('messages').select('id,thread_id,sender,sender_name,from_staff,body,reactions,created_at').eq('thread_id', tid).order('created_at', { ascending: false }).limit(200));
+  const r = fixErr(await S.sb.from('messages').select('id,thread_id,sender,sender_name,from_staff,body,reactions,broadcast,created_at').eq('thread_id', tid).order('created_at', { ascending: false }).limit(200));
   S.msgs[tid] = (r.data || []).slice().reverse();
 }
 function threadHtml(rows, emptyText) {
@@ -1018,7 +1202,7 @@ function threadHtml(rows, emptyText) {
     const mine = m.sender === me, re = m.reactions || {};
     const btns = REACTS.map((e) => { const who = re[e] || [], on = who.indexOf(me) > -1; if (!who.length && mine) return '';
       return '<button class="react" type="button" data-react="' + e + '" data-mid="' + esc(m.id) + '" aria-pressed="' + on + '" aria-label="React ' + e + (who.length ? ' (' + who.length + ')' : '') + '">' + e + (who.length ? '<span class="n">' + who.length + '</span>' : '') + '</button>'; }).join('');
-    return '<div class="msg' + (mine ? ' mine' : '') + (m.from_staff ? ' coachmsg' : '') + '"><span class="who">' + esc(mine ? 'You' : m.sender_name) + ' · ' + msgTime(m.created_at) + '</span><div class="bubble">' + esc(m.body) + '</div>' + (btns ? '<div class="reacts">' + btns + '</div>' : '') + '</div>';
+    return '<div class="msg' + (mine ? ' mine' : '') + (m.from_staff ? ' coachmsg' : '') + '"><span class="who">' + esc(mine ? 'You' : m.sender_name) + ' · ' + msgTime(m.created_at) + (m.broadcast ? ' · sent to all clients' : '') + '</span><div class="bubble">' + esc(m.body) + '</div>' + (btns ? '<div class="reacts">' + btns + '</div>' : '') + '</div>';
   }).join('');
 }
 function paintThread(sel, tid, emptyText) {
@@ -1084,6 +1268,13 @@ document.addEventListener('click', (e) => {
   if (t.dataset.rmMeal != null) { logDay('meal_remove', { i: +t.dataset.rmMeal }, ''); return; }
   if (t.dataset.ex) { S.exType = t.dataset.ex; renderClient(); return; }
   if (t.dataset.lb) { S.lb = t.dataset.lb; renderLeaderboard(); return; }
+  if (t.dataset.liquid) {
+    const id = t.dataset.liquid, on = !S.ticked.has(id);
+    if (on) S.ticked.add(id); else S.ticked.delete(id);
+    sfx('tap'); renderLiquids();
+    queue(async () => { const r = fixErr(await S.sb.rpc('tick_liquid', { p_liquid: id, p_on: on })); await loadClient(); renderClient(); if (r.data && r.data.gained) reward(r.data, 'All liquids taken'); });
+    return;
+  }
   if (t.dataset.thread) { S.openThread = t.dataset.thread; loadMsgs(S.openThread).then(renderClientMsgs).catch((er) => toast(friendly(er))); return; }
   if (t.dataset.jump) { const h = document.getElementById(t.dataset.jump); if (h) { const card = h.closest('.card, .hero') || h; window.scrollTo({ top: card.getBoundingClientRect().top + window.scrollY - 76, behavior: 'smooth' }); } document.querySelectorAll('#mbar button').forEach((b) => b.classList.toggle('on', b === t)); return; }
   if (t.dataset.react) {
@@ -1094,12 +1285,12 @@ document.addEventListener('click', (e) => {
   if (!isStaff()) return;
   // staff
   if (t.dataset.tab && !t.dataset.go) { setTab(t.dataset.tab); return; }
-  if (t.dataset.kth) { S.kThread = t.dataset.kth; if (t.dataset.go) setTab(t.dataset.go); loadMsgs(S.kThread).then(() => { renderInbox(); if (t.dataset.go) window.scrollTo({ top: 0, behavior: 'smooth' }); }).catch((er) => toast(friendly(er))); return; }
+  if (t.dataset.kth) { S.kThread = t.dataset.kth; S.kOpen = true; if (t.dataset.go) { S.ibox = 'mine'; setTab(t.dataset.go); } loadMsgs(S.kThread).then(() => { renderInbox(); if (t.dataset.go) window.scrollTo({ top: 0, behavior: 'smooth' }); }).catch((er) => toast(friendly(er))); return; }
   if (t.dataset.doneThread) { S.sb.rpc('mark_thread_done', { p_thread: t.dataset.doneThread }).then(async (r) => { if (r.error) { toast(friendly(r.error)); return; } await loadThreads(); renderStaff(); toast('Marked as done'); }); return; }
   if (t.dataset.msgClient) { const c = S.clients.find((x) => x.id === t.dataset.msgClient); const dr = t.dataset.draft && DRAFTS[t.dataset.draft]; openClientChat(t.dataset.msgClient, c ? (dr ? dr(c) : 'Hi ' + first(c.name) + ', ') : ''); return; }
   if (t.dataset.remind) {
     const c = S.clients.find((x) => x.id === t.dataset.remind); if (!c) return; t.disabled = true;
-    S.sb.rpc('ensure_dm', { p_client: c.id }).then(async (r) => {
+    S.sb.rpc('ensure_chat', { p_client: c.id }).then(async (r) => {
       if (r.error) { toast(friendly(r.error)); t.disabled = false; return; }
       const s2 = await S.sb.rpc('send_message', { p_thread: r.data, p_body: renewalText(c) });
       if (s2.error) { toast(friendly(s2.error)); t.disabled = false; return; }
@@ -1111,6 +1302,13 @@ document.addEventListener('click', (e) => {
   if (t.dataset.sort) { const k = t.dataset.sort; if (S.sortK === k) S.sortDir = -S.sortDir; else { S.sortK = k; S.sortDir = (k === 'name' || k === 'last' || k === 'end') ? 1 : -1; } renderClientsTable(); return; }
   if (t.dataset.pick) { openDrawer(t.dataset.pick, t.dataset.dmode || null); return; }
   if (t.dataset.closeDrawer) { closeDrawer(); return; }
+  if (t.dataset.ibox) { S.ibox = t.dataset.ibox; S.kOpen = false; const m = inboxThreads(); S.kThread = (m.find((x) => !x.last_from_staff) || m[0] || {}).id || null; loadMsgs(S.kThread).then(renderInbox).catch((er) => toast(friendly(er))); return; }
+  if (t.dataset.openBc) { openBroadcast(); return; }
+  if (t.dataset.zoom) { const z = document.createElement('div'); z.className = 'zoom'; z.setAttribute('role', 'dialog'); z.setAttribute('aria-label', 'Photo'); z.innerHTML = '<img src="' + esc(S.photoUrls[t.dataset.zoom] || '') + '" alt="' + esc(t.dataset.cap || 'Meal photo') + '"><span>' + esc(t.dataset.cap || '') + ' · tap to close</span>'; z.addEventListener('click', () => z.remove()); document.body.appendChild(z); return; }
+  if (t.dataset.lqRm) { const row = t.closest('.lq-row'); if (row) row.remove(); return; }
+  if (t.dataset.dietClient) { S.sel = t.dataset.dietClient; S.dietFor = null; renderDiet(); return; }
+  if (t.dataset.dietReuse && isCoach()) { const dd = [].concat(...Object.values(S.diets)).find((x) => x.id === t.dataset.dietReuse); if (dd) { fillDiet(dd); $('#dc-m0').focus(); } return; }
+  if (t.dataset.dietDel && isCoach()) { t.disabled = true; S.sb.rpc('delete_diet', { p_id: t.dataset.dietDel }).then(({ error }) => { if (error) { toast(friendly(error)); t.disabled = false; } else { toast('Diet removed'); refreshStaff(); } }); return; }
   if (t.dataset.firstClient) { setTab('clients'); if ($('#add-form').hidden) $('#add-toggle').click(); return; }
   if (t.dataset.copyCred) { copyText(S.cred ? S.cred.text : ''); return; }
   if (t.dataset.credClose) { S.cred = null; renderCred(); return; }
@@ -1127,10 +1325,9 @@ document.addEventListener('click', (e) => {
     });
     return;
   }
-  if (t.dataset.day) { const n = +t.dataset.day; flushPlan(); coachUpdate(S.sel, { diet_anchor: addDays(TODAY, -(n - 1)) }, 'Today is now day ' + n); return; }
   if (t.dataset.renew) { const c = S.clients.find((x) => x.id === t.dataset.renew); if (!c) return; const base = planLeft(c) < 0 ? TODAY : c.plan_end; coachUpdate(c.id, { plan_end: addDays(base, 30) }, first(c.name) + '’s plan now runs to ' + fmtShort(addDays(base, 30))); return; }
   if (t.dataset.detox) { t.disabled = true; S.sb.rpc('coach_mark_detox', { p_client: t.dataset.detox }).then(({ error }) => { if (error) { toast(friendly(error)); t.disabled = false; } else { toast('Detox day recorded'); refreshStaff(); } }); return; }
-  if (t.dataset.editPlan) { S.sel = t.dataset.editPlan; closeDrawer(); setTab('diet'); renderDiet(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  if (t.dataset.editPlan) { S.sel = t.dataset.editPlan; S.dietFor = null; closeDrawer(); setTab('diet'); renderDiet(); window.scrollTo({ top: 0, behavior: 'smooth' }); $('#dc-m0').focus({ preventScroll: true }); return; }
   if (t.dataset.rm) { S.rmConfirm = t.dataset.rm; renderDrawer(); return; }
   if (t.dataset.rmNo) { S.rmConfirm = null; renderDrawer(); return; }
   if (t.dataset.rmYes) { const id = t.dataset.rmYes; t.disabled = true; S.sb.rpc('delete_client', { p_client: id }).then(({ error }) => { if (error) { toast(friendly(error)); t.disabled = false; } else { closeDrawer(); toast('Client deleted'); refreshStaff(); } }); return; }
@@ -1145,13 +1342,13 @@ document.addEventListener('keydown', (e) => {
   if (!$('#pw-modal').hidden) closeModal(); else if (S.drawer) closeDrawer();
 });
 function syncSound() { const b = $('#snd'); b.textContent = SOUND ? 'Sound on' : 'Sound off'; b.setAttribute('aria-pressed', String(SOUND)); }
-function syncMbar() { const on = !$('#app').hidden && S.role === 'client' && !!S.me; $('#mbar').hidden = !on; document.body.classList.toggle('has-mbar', on); $('#snd').hidden = S.role !== 'client'; }
+function syncMbar() { const on = !$('#app').hidden && S.role === 'client' && !!S.me; $('#mbar').hidden = !on; document.body.classList.toggle('has-mbar', on); $('#snd').hidden = S.role !== 'client';  const st = !$('#app').hidden && isStaff(); $('#sbar').hidden = !st; document.body.classList.toggle('has-sbar', st); if (st) document.body.classList.add('has-mbar'); }
 let rz = null;
 window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (S.role === 'client' && S.me && !$('#app').hidden) renderChart(S.me.goal_kg ? num(S.me.goal_kg) : null, S.weights, $('#chart-box'), num(S.me.start_kg)); }, 150); });
 function refreshVisible() {
   if (!S.session || $('#app').hidden) return;
   if (syncToday()) { S.day = null; }
-  if (S.role === 'client') refreshClient(); else if (!S.drawer && !$('#plan-grid').contains(document.activeElement) && !(document.activeElement && document.activeElement.closest('#add-form, #grp-form'))) refreshStaff();
+  if (S.role === 'client') refreshClient(); else if (!S.drawer && !(document.activeElement && document.activeElement.closest('#add-form, #grp-form, #dc-form, #bc-form'))) refreshStaff();
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshVisible(); });
 setInterval(() => { if (document.visibilityState === 'visible' && isStaff()) refreshVisible(); }, 60000);
@@ -1159,7 +1356,7 @@ setInterval(() => { if (document.visibilityState === 'visible' && isStaff()) ref
 /* card icons */
 const ICONS = { scale: 'M4 20h16M6 20l2-12h8l2 12M12 8V4M9 4h6', plate: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', drop: G.drop, run: 'M13 4a2 2 0 1 0 0 .1M7 21l3-6 3 2v4M10 15l1-5 3 2 3 1M8 11l3-1', leaf: G.leaf, target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', medal: 'M8 3l4 6 4-6M12 21a6 6 0 1 0 0-12 6 6 0 0 0 0 12z', trophy: 'M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 21h8', users: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM3 21c0-4 3-6 6-6s6 2 6 6M16 3.5a4 4 0 0 1 0 7.5M21 21c0-3-1.5-5-4-5.7', clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2', pulse: 'M3 12h4l2-5 4 10 2-5h6', chat: 'M4 5h16v11H9l-5 4z', check: 'M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9' };
 const TILE = { forest: '#1f5233', slate: '#2c5282', ember: '#c2410c', water: '#2a6db0', gold: '#a8690b', danger: '#b42318' };
-const CARD_ICONS = { 'wt-h': ['scale', 'forest'], 'cal-h': ['plate', 'ember'], 'wa-h': ['drop', 'water'], 'ex-h': ['run', 'slate'], 'pl-h': ['leaf', 'forest'], 'ch-h': ['target', 'ember'], 'ac-h': ['medal', 'gold'], 'lb-h': ['trophy', 'gold'], 'cl-h': ['users', 'forest'], 'dc-h': ['leaf', 'forest'], 'rn-h': ['clock', 'ember'], 'dx-h': ['leaf', 'slate'], 'bt-h': ['pulse', 'danger'], 'ms-h': ['chat', 'slate'], 'ib-h': ['chat', 'slate'], 'tk-h': ['check', 'ember'], 'ci-h': ['scale', 'forest'] };
+const CARD_ICONS = { 'wt-h': ['scale', 'forest'], 'cal-h': ['plate', 'ember'], 'wa-h': ['drop', 'water'], 'ex-h': ['run', 'slate'], 'pl-h': ['leaf', 'forest'], 'ch-h': ['target', 'ember'], 'ac-h': ['medal', 'gold'], 'lb-h': ['trophy', 'gold'], 'cl-h': ['users', 'forest'], 'dc-h': ['leaf', 'forest'], 'rn-h': ['clock', 'ember'], 'dx-h': ['leaf', 'slate'], 'bt-h': ['pulse', 'danger'], 'ms-h': ['chat', 'slate'], 'lq-h': ['drop', 'slate'], 'ib-h': ['chat', 'slate'], 'tk-h': ['check', 'ember'], 'ph-h': ['plate', 'ember'], 'wk-h': ['trophy', 'gold'], 'ac2-h': ['pulse', 'slate'], 'w7-h': ['scale', 'forest'], 'dl-h': ['leaf', 'forest'], 'ci-h': ['scale', 'forest'] };
 Object.entries(CARD_ICONS).forEach(([hid, [ic, col]]) => {
   const h = document.getElementById(hid); if (!h) return; const head = h.closest('.card-h > div'); if (!head) return;
   const w = document.createElement('div'); w.className = 'head'; head.parentNode.insertBefore(w, head);
