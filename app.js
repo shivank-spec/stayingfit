@@ -35,16 +35,40 @@ const num = (v) => (v == null ? null : +v);
 const FOODS = [
   ['Roti','1 medium',120],['Chapati with ghee','1 medium',160],['Steamed rice','1 cup cooked',205],['Brown rice','1 cup cooked',215],
   ['Dal tadka','1 bowl',180],['Moong dal','1 bowl',150],['Rajma','1 bowl',240],['Chole','1 bowl',270],['Sambar','1 bowl',140],
-  ['Paneer bhurji','1 bowl',290],['Palak paneer','1 bowl',280],['Paneer butter masala','1 bowl',350],['Paneer tikka','6 pieces',260],
-  ['Idli','2 pieces',120],['Plain dosa','1 dosa',170],['Masala dosa','1 dosa',390],['Poha','1 plate',250],['Upma','1 bowl',230],
-  ['Besan chilla','2 chillas',220],['Vegetable khichdi','1 bowl',300],['Aloo paratha','1 paratha',300],['Mixed veg sabzi','1 bowl',150],
+  ['Paneer bhurji','1 bowl',290],['Palak paneer','1 bowl',280],['Paneer butter masala','1 bowl',350],['Paneer tikka','1 plate (6 pieces)',260],
+  ['Idli','1 piece',60],['Plain dosa','1 dosa',170],['Masala dosa','1 dosa',390],['Poha','1 plate',250],['Upma','1 bowl',230],
+  ['Besan chilla','1 chilla',110],['Moong dal chilla','1 chilla',130],['Oats chilla','1 chilla',140],['Ragi chilla','1 chilla',120],['Paneer stuffed chilla','1 chilla',200],['Vegetable khichdi','1 bowl',300],['Aloo paratha','1 paratha',300],['Mixed veg sabzi','1 bowl',150],
   ['Bhindi sabzi','1 bowl',140],['Lauki sabzi','1 bowl',110],['Chicken curry','1 bowl',300],['Grilled chicken breast','150 g',250],['Fish curry','1 bowl',240],
-  ['Grilled fish','150 g',200],['Boiled egg','1 egg',78],['Masala omelette','2 eggs',190],['Curd','1 bowl',100],['Raita','1 bowl',90],
+  ['Grilled fish','150 g',200],['Boiled egg','1 egg',78],['Masala omelette','1 omelette (2 eggs)',190],['Curd','1 bowl',100],['Raita','1 bowl',90],
   ['Buttermilk','1 glass',40],['Sprouts salad','1 bowl',150],['Oats with milk','1 bowl',250],['Banana','1 medium',105],['Apple','1 medium',95],
-  ['Papaya','1 cup',60],['Almonds','10 nuts',70],['Roasted chana','1 handful',120],['Makhana','1 cup roasted',90],['Samosa','1 piece',260],['Masala chai','1 cup',90],
-  ['Black coffee','1 cup',5],['Green tea','1 cup',2],['Coconut water','1 glass',45],['Cucumber salad','1 bowl',30],['Clear vegetable soup','1 bowl',70]
+  ['Papaya','1 cup',60],['Almonds','10 almonds',70],['Roasted chana','1 handful',120],['Makhana','1 cup roasted',90],['Samosa','1 piece',260],['Masala chai','1 cup',90],
+  ['Black coffee','1 cup',5],['Green tea','1 cup',2],['Coconut water','1 glass',45],['Cucumber salad','1 bowl',30],['Clear vegetable soup','1 bowl',70],
+  ['Phulka without ghee','1 small',70],['Multigrain roti','1 medium',110],['Bajra roti','1 medium',120],['Jowar roti','1 medium',110],['Plain paratha','1 paratha',200],
+  ['Paneer paratha','1 paratha',320],['Methi thepla','1 thepla',120],['Khakhra','1 piece',60],['Dhokla','1 piece',80],['Vegetable dalia','1 bowl',220],
+  ['Sattu drink','1 glass',150],['Quinoa','1 cup cooked',220],['Vegetable pulao','1 cup',250],['Curd rice','1 bowl',280],['Kadhi','1 bowl',150],
+  ['Aloo sabzi','1 bowl',200],['Gobi sabzi','1 bowl',140],['Mixed dal','1 bowl',170],['Tofu bhurji','1 bowl',220],['Paneer','100 g',265],
+  ['Milk','1 glass',120],['Ghee','1 teaspoon',45],['Orange','1 medium',60],['Guava','1 medium',70],['Pomegranate','1 cup',140],['Watermelon','1 cup',45],
+  ['Fruit bowl','1 bowl',120],['Walnuts','4 halves',52],['Peanuts','1 handful',170],['Vegetable sandwich','1 sandwich',250],['Bhel','1 plate',200],
+  ['Pav bhaji','1 plate',400],['Vegetable biryani','1 plate',350],['Chicken biryani','1 plate',450],['Instant noodles','1 pack',310],['Pizza','1 slice',285],
+  ['Veg burger','1 burger',350],['Gulab jamun','1 piece',150],['Rasgulla','1 piece',110],['Ice cream','1 scoop',140],['Marie biscuit','1 biscuit',25],
+  ['Lemon water without sugar','1 glass',10],['Protein shake','1 scoop in water',120]
 ].map((f) => ({ n: f[0], s: f[1], k: f[2] }));
-const MEALS = ['Breakfast', 'Lunch', 'Snack', 'Dinner'];
+const MEALS = ['Breakfast', 'Mid meal', 'Lunch', 'Snack', 'Dinner'];
+/* diets written before the mid meal was added hold four meals: breakfast, lunch, snack, dinner */
+const dietMeals = (dt) => { const m = (dt && dt.meals) || []; return m.length === 4 ? [m[0], '', m[1], m[2], m[3]] : m; };
+/* a guess at the calories of a food that is not on the list, from the closest dish that is */
+function estimateFood(name) {
+  const words = String(name).toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2); if (!words.length) return null;
+  const same = (a, b) => a === b || (a.length > 3 && b.length > 3 && (a.indexOf(b) === 0 || b.indexOf(a) === 0));
+  let best = null, bs = 0;
+  FOODS.forEach((f) => { const fw = f.n.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
+    let sc = words.filter((w) => fw.some((x) => same(x, w))).length * 2; if (!sc) return;
+    if (same(fw[fw.length - 1], words[words.length - 1])) sc += 3;
+    sc -= fw.filter((x) => !words.some((w) => same(x, w))).length * 0.5;
+    if (sc > bs) { bs = sc; best = f; } });
+  return best;
+}
+const qtyTxt = (q) => (q === 0.5 ? '½' : q % 1 ? Math.floor(q) + '½' : String(q));
 const G = {
   flame: 'M12 3c.8 3-2 4.6-2 7.4 0 1.3.9 2.3 2 2.3 1.5 0 2.2-1.2 2-2.8 1.9 1.5 3 3.7 3 5.8A5 5 0 0 1 7 16c0-4.5 3.8-6.6 5-13z',
   drop: 'M12 3.5c2.8 3.6 5.5 6.6 5.5 9.9a5.5 5.5 0 0 1-11 0c0-3.3 2.7-6.3 5.5-9.9z',
@@ -195,7 +219,7 @@ function freshState() {
     me: null, weights: [], day: null, plan: null, board: [], photoUrls: {}, tests: [], reportUrls: {},
     threads: [], msgs: {}, openThread: null, dmId: null, kThread: null,
     clients: [], profiles: {}, allWeights: {}, days: {}, diets: {}, liq: {}, ticks: {}, allTests: {}, ibox: 'mine', kOpen: false, dietFor: null,
-    exType: 'Walk', q: '', seen: {}, diet: null, liquids: [], ticked: new Set(), asstId: null, lb: 'loss', tier: 'All', cq: '', sortK: 'name', sortDir: 1, sel: null, drawer: null, drawerMode: null,
+    exType: 'Walk', q: '', pick: null, seen: {}, diet: null, liquids: [], ticked: new Set(), asstId: null, lb: 'loss', tier: 'All', cq: '', sortK: 'name', sortDir: 1, sel: null, drawer: null, drawerMode: null,
     counted: {}, lvlSeen: null, chain: Promise.resolve(), lastGlass: -1, tab: null, cred: null
   };
 }
@@ -582,9 +606,33 @@ function renderLeaderboard() {
     return '<div class="lb-row' + (x.is_me ? ' me' : '') + '"><span class="rank' + (r === 1 ? ' first' : '') + '">' + r + mv + '</span><span class="avatar">' + esc(x.initials) + '</span><strong style="font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (x.is_me ? 'You' : esc(x.label)) + '</strong><div class="lb-track" style="background:var(--soft)"><div class="lb-bar" style="width:' + Math.max(v / max * 100, 0).toFixed(1) + '%"></div></div><span class="mono num" style="text-align:right;font-size:13px">' + (key === 'loss' ? v.toFixed(1) + '%' : key === 'stars' ? v + ' stars' : v + ' days') + '</span></div>'; }).join('');
 }
 function renderFood() {
-  const q = S.q.trim().toLowerCase(), res = q ? FOODS.filter((f) => f.n.toLowerCase().indexOf(q) > -1).slice(0, 6) : [];
-  const box = $('#food-res'); box.hidden = !res.length; $('#food-none').hidden = !(q.length > 1 && !res.length);
-  box.innerHTML = res.map((f) => '<button class="result" type="button" role="listitem" data-food="' + esc(f.n) + '"><span style="display:flex;flex-direction:column"><span>' + esc(f.n) + '</span><span class="small muted">' + esc(f.s) + '</span></span><span style="display:flex;gap:10px;align-items:center"><span class="mono num small">' + f.k + ' kcal</span><strong style="color:var(--forest);font-size:13px">Add</strong></span></button>').join('');
+  const raw = S.q.trim(), q = raw.toLowerCase(), res = q ? FOODS.filter((f) => f.n.toLowerCase().indexOf(q) > -1).slice(0, 6) : [];
+  const own = raw.length > 1 && !FOODS.some((f) => f.n.toLowerCase() === q);
+  const box = $('#food-res'); box.hidden = !(res.length || own) || !!S.pick;
+  box.innerHTML = res.map((f) => '<button class="result" type="button" role="listitem" data-food="' + esc(f.n) + '"><span style="display:flex;flex-direction:column"><span>' + esc(f.n) + '</span><span class="small muted">' + esc(f.s) + '</span></span><span style="display:flex;gap:10px;align-items:center"><span class="mono num small">' + f.k + ' kcal</span><strong style="color:var(--forest);font-size:13px">Choose</strong></span></button>').join('')
+    + (own ? '<button class="result" type="button" role="listitem" data-food-own="1"><span style="display:flex;flex-direction:column"><span>Add “' + esc(raw.slice(0, 48)) + '”</span><span class="small muted">Not on the list? Add it as your own food</span></span><strong style="color:var(--forest);font-size:13px">Add</strong></button>' : '');
+  renderPick();
+}
+/* after choosing a food: how many, and for your own foods, the calories in one */
+function renderPick() {
+  const p = S.pick, box = $('#food-pick'); box.hidden = !p; if (!p) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div style="display:flex;flex-direction:column;gap:2px"><strong>' + esc(p.n) + '</strong><span class="small muted">' + (p.own ? 'Your own food' : esc(p.s) + ' · ' + p.k + ' kcal each') + '</span></div>'
+    + (p.own ? '<div class="field"><label class="lbl" for="fp-k">Calories in one serving</label><input class="input num" id="fp-k" type="number" inputmode="numeric" min="0" max="2000" step="1" value="' + (p.k == null ? '' : p.k) + '" style="max-width:160px"><span class="small muted">' + (p.est ? 'Estimated from ' + esc(p.est) + '. Change it if you know the real number.' : 'We couldn’t estimate this one. Enter your best guess.') + '</span></div>' : '')
+    + '<div class="field"><span class="lbl" id="fp-ql">How many did you have?</span><div class="fp-q" role="group" aria-labelledby="fp-ql">' + [0.5, 1, 2, 3, 4].map((v) => '<button class="chip" type="button" data-fp-set="' + v + '" aria-pressed="' + (p.q === v) + '">' + qtyTxt(v) + '</button>').join('')
+    + '<span class="stepper"><button class="st" type="button" data-fp-step="-0.5" aria-label="Half less">−</button><span class="num" id="fp-qv" aria-live="polite">' + qtyTxt(p.q) + '</span><button class="st" type="button" data-fp-step="0.5" aria-label="Half more">+</button></span></div></div>'
+    + '<div class="err" id="fp-err" role="alert" hidden></div>'
+    + '<div class="row"><button class="btn" type="button" id="fp-add"></button><button class="ghost" style="height:44px" type="button" id="fp-cancel">Cancel</button></div>';
+  paintPickTotal();
+}
+function paintPickTotal() { const p = S.pick, b = $('#fp-add'); if (!p || !b) return; b.textContent = p.k == null || isNaN(p.k) ? 'Add' : 'Add · ' + Math.round(p.k * p.q) + ' kcal'; }
+function addPicked() {
+  const p = S.pick, err = $('#fp-err'), fail = (m) => { err.textContent = m; err.hidden = false; };
+  if (p.k == null || isNaN(p.k) || p.k < 0) return fail('Enter the calories in one serving.');
+  const total = Math.round(p.k * p.q);
+  if (total > 3000) return fail('That is over 3,000 kcal. Check the number.');
+  const label = p.n.slice(0, 50) + (p.q !== 1 ? ' × ' + qtyTxt(p.q) : '');
+  S.pick = null; S.q = ''; $('#food-in').value = ''; renderFood();
+  logDay('meal_add', { n: label, k: total, t: clock() }, label + ' logged');
 }
 
 /* client events */
@@ -610,7 +658,8 @@ $('#ex-form').addEventListener('submit', (e) => {
   if (!(m >= 5 && m <= 300)) { err.textContent = 'Enter between 5 and 300 minutes.'; err.hidden = false; return; }
   err.hidden = true; logDay('exercise', { type: S.exType, min: m, t: clock() }, S.exType + ' logged');
 });
-$('#food-in').addEventListener('input', (e) => { S.q = e.target.value; renderFood(); });
+$('#food-in').addEventListener('input', (e) => { S.q = e.target.value; S.pick = null; renderFood(); });
+$('#food-pick').addEventListener('input', (e) => { if (e.target.id === 'fp-k' && S.pick) { S.pick.k = e.target.value === '' ? null : Math.round(+e.target.value); $('#fp-err').hidden = true; paintPickTotal(); } });
 $('#food-in').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const b = $('#food-res .result'); if (b) b.click(); } });
 $('#ph-in').addEventListener('change', (e) => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
@@ -647,8 +696,8 @@ function renderClientHealth() {
   $('#bt-view').innerHTML = testsHtml(S.tests, S.reportUrls);
 }
 function dietHtml(diet, w) {
-  const m = diet.meals || [];
-  return MEALS.map((name, i) => '<div class="diet-row" style="grid-template-columns:' + w + 'px minmax(0,1fr)"><span class="eyebrow" style="padding-top:3px">' + name + '</span><span style="white-space:pre-line">' + (m[i] && String(m[i]).trim() ? esc(m[i]) : '<span class="muted">Not set</span>') + '</span></div>').join('')
+  const m = dietMeals(diet);
+  return MEALS.map((name, i) => (m[i] && String(m[i]).trim() ? '<div class="diet-row" style="grid-template-columns:' + w + 'px minmax(0,1fr)"><span class="eyebrow" style="padding-top:3px">' + name + '</span><span style="white-space:pre-line">' + esc(m[i]) + '</span></div>' : '')).join('')
     + (diet.notes ? '<div class="notice" style="margin-top:12px"><strong>Note:</strong> <span style="white-space:pre-line">' + esc(diet.notes) + '</span></div>' : '');
 }
 const TICK = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" style="stroke-width:3" d="M4 12.5l5 5L20 6.5"/></svg>';
@@ -1137,7 +1186,7 @@ function dietStatus(c) {
   const dn = dietDay(dt);
   return dn > 4 ? ['over', 'Due ' + (dn - 4) + (dn - 4 === 1 ? ' day ago' : ' days ago'), 1] : dn === 4 ? ['soon', 'Ends today', 2] : ['ok', 'Day ' + dn + ' of 4', 3];
 }
-function fillDiet(dt) { [0, 1, 2, 3].forEach((i) => { $('#dc-m' + i).value = (dt.meals || [])[i] || ''; }); $('#dc-notes').value = dt.notes || ''; }
+function fillDiet(dt) { const m = dietMeals(dt); [0, 1, 2, 3, 4].forEach((i) => { $('#dc-m' + i).value = m[i] || ''; }); $('#dc-notes').value = dt.notes || ''; }
 function renderDiet() {
   const cs = S.clients.slice().sort((a, b) => dietStatus(a)[2] - dietStatus(b)[2] || a.name.localeCompare(b.name));
   if (!S.sel || !cs.find((c) => c.id === S.sel)) { S.sel = cs[0] ? cs[0].id : null; S.dietFor = null; }
@@ -1161,14 +1210,14 @@ function renderDiet() {
   $('#dc-form-h').textContent = 'New diet for ' + first(sc.name);
   $('#dc-copy').hidden = !all.length;
   const past = all.slice().reverse().slice(0, 6);
-  $('#dc-history').innerHTML = past.length ? '<span class="eyebrow" style="display:block;margin-bottom:4px">Diets sent to ' + esc(first(sc.name)) + '</span>' + past.map((x) => '<div class="dc-hist"><span style="min-width:0;display:flex;flex-direction:column"><strong style="font-size:14px">' + fmtDay(x.start_date) + ' to ' + fmtDay(addDays(x.start_date, 3)) + (x.start_date > TODAY ? ' · upcoming' : '') + '</strong><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc((x.meals || []).filter(Boolean).join(' · ')) + '</span></span><span style="display:flex;gap:6px"><button class="ghost" type="button" data-diet-reuse="' + esc(x.id) + '">Reuse</button><button class="ghost danger" type="button" data-diet-del="' + esc(x.id) + '">Delete</button></span></div>').join('') : '';
+  $('#dc-history').innerHTML = past.length ? '<span class="eyebrow" style="display:block;margin-bottom:4px">Diets sent to ' + esc(first(sc.name)) + '</span>' + past.map((x) => '<div class="dc-hist"><span style="min-width:0;display:flex;flex-direction:column"><strong style="font-size:14px">' + fmtDay(x.start_date) + ' to ' + fmtDay(addDays(x.start_date, 3)) + (x.start_date > TODAY ? ' · upcoming' : '') + '</strong><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(dietMeals(x).filter(Boolean).join(' · ')) + '</span></span><span style="display:flex;gap:6px"><button class="ghost" type="button" data-diet-reuse="' + esc(x.id) + '">Reuse</button><button class="ghost danger" type="button" data-diet-del="' + esc(x.id) + '">Delete</button></span></div>').join('') : '';
 }
 $('#dc-client').addEventListener('change', (e) => { S.sel = e.target.value; S.dietFor = null; renderDiet(); });
 $('#dc-copy').addEventListener('click', () => { const all = S.diets[S.sel] || []; if (all.length) { fillDiet(all[all.length - 1]); $('#dc-m0').focus(); } });
 $('#dc-form').addEventListener('submit', async (e) => {
   e.preventDefault(); if (!isCoach() || !S.sel) return;
   const err = $('#dc-err'), fail = (m) => { err.textContent = m; err.hidden = false; };
-  const meals = [0, 1, 2, 3].map((i) => $('#dc-m' + i).value.trim()), start = $('#dc-start').value, c = S.clients.find((x) => x.id === S.sel);
+  const meals = [0, 1, 2, 3, 4].map((i) => $('#dc-m' + i).value.trim()), start = $('#dc-start').value, c = S.clients.find((x) => x.id === S.sel);
   if (!meals.some(Boolean)) return fail('Write at least one meal.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return fail('Pick the day this diet starts.');
   err.hidden = true; const b = $('#dc-go'); b.disabled = true; b.innerHTML = '<span class="spin"></span> Sending…';
@@ -1268,7 +1317,12 @@ document.addEventListener('click', (e) => {
     S.lastGlass = i; S.day = Object.assign(S.day || emptyDay(), { water: next }); paintGlasses(next); $('#wa-h').textContent = next + ' of 10 glasses';
     logDay('water', { n: next }, 'Water goal done'); return;
   }
-  if (t.dataset.food) { const f = FOODS.find((x) => x.n === t.dataset.food); S.q = ''; $('#food-in').value = ''; renderFood(); logDay('meal_add', { n: f.n, k: f.k, t: clock() }, f.n + ' logged'); return; }
+  if (t.dataset.food) { const f = FOODS.find((x) => x.n === t.dataset.food); S.pick = { n: f.n, s: f.s, k: f.k, q: 1 }; renderFood(); $('#fp-add').focus({ preventScroll: true }); return; }
+  if (t.dataset.foodOwn) { const nm = S.q.trim().replace(/\s+/g, ' ').slice(0, 48), est = estimateFood(nm); S.pick = { n: nm.charAt(0).toUpperCase() + nm.slice(1), own: true, k: est ? est.k : null, est: est ? est.n + ' (' + est.s + ')' : null, q: 1 }; renderFood(); $(est ? '#fp-add' : '#fp-k').focus({ preventScroll: true }); return; }
+  if (t.dataset.fpSet && S.pick) { S.pick.q = +t.dataset.fpSet; renderPick(); return; }
+  if (t.dataset.fpStep && S.pick) { S.pick.q = Math.min(20, Math.max(0.5, S.pick.q + +t.dataset.fpStep)); renderPick(); return; }
+  if (t.id === 'fp-add' && S.pick) { addPicked(); return; }
+  if (t.id === 'fp-cancel') { S.pick = null; renderFood(); $('#food-in').focus(); return; }
   if (t.dataset.rmMeal != null) { logDay('meal_remove', { i: +t.dataset.rmMeal }, ''); return; }
   if (t.dataset.ex) { S.exType = t.dataset.ex; renderClient(); return; }
   if (t.dataset.lb) { S.lb = t.dataset.lb; renderLeaderboard(); return; }
