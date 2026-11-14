@@ -420,7 +420,7 @@ async function loadClient() {
   const [w, d, p, b, t, lq, tk] = await Promise.all([
     S.sb.from('weights').select('d,kg').eq('client_id', c.id).order('d'),
     S.sb.from('day_logs').select('*').eq('client_id', c.id).eq('d', TODAY).maybeSingle(),
-    S.sb.from('diets').select('id,start_date,meals,notes').eq('client_id', c.id).lte('start_date', TODAY).order('start_date', { ascending: false }).limit(1),
+    S.sb.from('diets').select('id,start_date,meals,notes,morning,night').eq('client_id', c.id).lte('start_date', TODAY).order('start_date', { ascending: false }).limit(1),
     S.sb.rpc('leaderboard'),
     S.sb.from('blood_tests').select('*').eq('client_id', c.id).order('d'),
     S.sb.from('liquids').select('id,name,when_text,sort').eq('client_id', c.id).eq('active', true).order('sort'),
@@ -707,8 +707,8 @@ function renderClientHealth() {
   $('#bt-view').innerHTML = testsHtml(S.tests, S.reportUrls);
 }
 function dietHtml(diet, w) {
-  const m = dietMeals(diet);
-  return MEALS.map((name, i) => (m[i] && String(m[i]).trim() ? '<div class="diet-row" style="grid-template-columns:' + w + 'px minmax(0,1fr)"><span class="eyebrow" style="padding-top:3px">' + name + '</span><span style="white-space:pre-line">' + esc(m[i]) + '</span></div>' : '')).join('')
+  const m = dietMeals(diet), row = (name, text) => (text && String(text).trim() ? '<div class="diet-row" style="grid-template-columns:' + w + 'px minmax(0,1fr)"><span class="eyebrow" style="padding-top:3px">' + name + '</span><span style="white-space:pre-line">' + esc(text) + '</span></div>' : '');
+  return row('Morning', diet.morning) + MEALS.map((name, i) => row(name, m[i])).join('') + row('Night', diet.night)
     + (diet.notes ? '<div class="notice" style="margin-top:12px"><strong>Note:</strong> <span style="white-space:pre-line">' + esc(diet.notes) + '</span></div>' : '');
 }
 const TICK = '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" style="stroke-width:3" d="M4 12.5l5 5L20 6.5"/></svg>';
@@ -774,7 +774,7 @@ async function loadStaff() {
     S.sb.from('profiles').select('id,username,role,display_name,must_change_pw'),
     allRows(() => S.sb.from('weights').select('client_id,d,kg,at').gte('d', since).order('d').order('client_id')),
     S.sb.from('day_logs').select('*').eq('d', TODAY),
-    S.sb.from('diets').select('id,client_id,start_date,meals,notes').order('start_date'),
+    S.sb.from('diets').select('id,client_id,start_date,meals,notes,morning,night').order('start_date'),
     S.sb.from('blood_tests').select('*').order('d'),
     S.sb.from('liquids').select('id,client_id,name,when_text,sort').eq('active', true).order('sort'),
     S.sb.from('liquid_ticks').select('client_id,liquid_id,at').eq('d', TODAY)
@@ -1320,7 +1320,7 @@ function dietStatus(c) {
   const dn = dietDay(dt);
   return dn > 4 ? ['over', 'Due ' + (dn - 4) + (dn - 4 === 1 ? ' day ago' : ' days ago'), 1] : dn === 4 ? ['soon', 'Ends today', 2] : ['ok', 'Day ' + dn + ' of 4', 3];
 }
-function fillDiet(dt) { const m = dietMeals(dt); [0, 1, 2, 3, 4].forEach((i) => { $('#dc-m' + i).value = m[i] || ''; }); $('#dc-notes').value = dt.notes || ''; }
+function fillDiet(dt) { const m = dietMeals(dt); [0, 1, 2, 3, 4].forEach((i) => { $('#dc-m' + i).value = m[i] || ''; }); $('#dc-notes').value = dt.notes || ''; $('#dc-am').value = dt.morning || ''; $('#dc-pm').value = dt.night || ''; }
 function renderDiet() {
   const cs = S.clients.slice().sort((a, b) => dietStatus(a)[2] - dietStatus(b)[2] || a.name.localeCompare(b.name));
   if (!S.sel || !cs.find((c) => c.id === S.sel)) { S.sel = cs[0] ? cs[0].id : null; S.dietFor = null; }
@@ -1344,7 +1344,7 @@ function renderDiet() {
   $('#dc-form-h').textContent = 'New diet for ' + first(sc.name);
   $('#dc-copy').hidden = !all.length;
   const past = all.slice().reverse().slice(0, 6);
-  $('#dc-history').innerHTML = past.length ? '<span class="eyebrow" style="display:block;margin-bottom:4px">Diets sent to ' + esc(first(sc.name)) + '</span>' + past.map((x) => '<div class="dc-hist"><span style="min-width:0;display:flex;flex-direction:column"><strong style="font-size:14px">' + fmtDay(x.start_date) + ' to ' + fmtDay(addDays(x.start_date, 3)) + (x.start_date > TODAY ? ' · upcoming' : '') + '</strong><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(dietMeals(x).filter(Boolean).join(' · ')) + '</span></span><span style="display:flex;gap:6px"><button class="ghost" type="button" data-diet-reuse="' + esc(x.id) + '">Reuse</button><button class="ghost danger" type="button" data-diet-del="' + esc(x.id) + '">Delete</button></span></div>').join('') : '';
+  $('#dc-history').innerHTML = past.length ? '<span class="eyebrow" style="display:block;margin-bottom:4px">Diets sent to ' + esc(first(sc.name)) + '</span>' + past.map((x) => '<div class="dc-hist"><span style="min-width:0;display:flex;flex-direction:column"><strong style="font-size:14px">' + fmtDay(x.start_date) + ' to ' + fmtDay(addDays(x.start_date, 3)) + (x.start_date > TODAY ? ' · upcoming' : '') + '</strong><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc([x.morning].concat(dietMeals(x), [x.night]).filter(Boolean).join(' · ')) + '</span></span><span style="display:flex;gap:6px"><button class="ghost" type="button" data-diet-reuse="' + esc(x.id) + '">Reuse</button><button class="ghost danger" type="button" data-diet-del="' + esc(x.id) + '">Delete</button></span></div>').join('') : '';
 }
 $('#dc-client').addEventListener('change', (e) => { S.sel = e.target.value; S.dietFor = null; renderDiet(); });
 $('#dc-copy').addEventListener('click', () => { const all = S.diets[S.sel] || []; if (all.length) { fillDiet(all[all.length - 1]); $('#dc-m0').focus(); } });
@@ -1355,7 +1355,7 @@ $('#dc-form').addEventListener('submit', async (e) => {
   if (!meals.some(Boolean)) return fail('Write at least one meal.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return fail('Pick the day this diet starts.');
   err.hidden = true; const b = $('#dc-go'); b.disabled = true; b.innerHTML = '<span class="spin"></span> Sending…';
-  const r = await S.sb.rpc('save_diet', { p_client: S.sel, p_start: start, p_meals: meals, p_notes: $('#dc-notes').value.trim() || null });
+  const r = await S.sb.rpc('save_diet', { p_client: S.sel, p_start: start, p_meals: meals, p_notes: $('#dc-notes').value.trim() || null, p_morning: $('#dc-am').value.trim() || null, p_night: $('#dc-pm').value.trim() || null });
   b.disabled = false; b.textContent = 'Send diet';
   if (r.error) return fail(friendly(r.error));
   S.dietFor = null; toast('Diet sent to ' + first(c.name)); await refreshStaff();

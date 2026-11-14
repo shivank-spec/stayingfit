@@ -401,6 +401,7 @@
         <form id="dc-form" class="dc-form" novalidate>
           <div class="card-h"><strong id="dc-form-h">New diet</strong><button class="ghost" type="button" id="dc-copy">Start from the last diet</button></div>
           <div class="field" style="max-width:220px"><label class="lbl" for="dc-start">Starts on</label><input class="input" id="dc-start" type="date"></div>
+          <div class="field"><label class="lbl" for="dc-am">Morning message (shown above breakfast)</label><textarea class="ta" id="dc-am" maxlength="400" rows="2" placeholder="e.g. Start with warm jeera water and a 20-minute walk."></textarea></div>
           <div class="dc-meals">
             <div class="field"><label class="lbl" for="dc-m0">Breakfast</label><textarea class="ta" id="dc-m0" maxlength="400" rows="3"></textarea></div>
             <div class="field"><label class="lbl" for="dc-m1">Mid meal</label><textarea class="ta" id="dc-m1" maxlength="400" rows="3"></textarea></div>
@@ -408,6 +409,7 @@
             <div class="field"><label class="lbl" for="dc-m3">Snack</label><textarea class="ta" id="dc-m3" maxlength="400" rows="3"></textarea></div>
             <div class="field"><label class="lbl" for="dc-m4">Dinner</label><textarea class="ta" id="dc-m4" maxlength="400" rows="3"></textarea></div>
           </div>
+          <div class="field"><label class="lbl" for="dc-pm">Night message (shown below dinner)</label><textarea class="ta" id="dc-pm" maxlength="400" rows="2" placeholder="e.g. Finish dinner by 8 pm. Haldi milk before bed."></textarea></div>
           <div class="field"><label class="lbl" for="dc-notes">Note for the client (optional)</label><textarea class="ta" id="dc-notes" maxlength="600" rows="2"></textarea></div>
           <div class="err" id="dc-err" role="alert" hidden></div>
           <div class="row" style="align-items:center"><button class="btn" type="submit" id="dc-go">Send diet</button><span class="small muted">The client sees it straight away. It runs for 4 days.</span></div>
@@ -463,6 +465,6 @@
 
 <script src="config.js"></script>
 <script src="supabase-2.117.2.js"></script>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>
