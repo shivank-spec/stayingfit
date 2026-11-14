@@ -846,7 +846,7 @@ function renderStaff() {
   const logged = cs.filter((c) => c.last_log_date === TODAY).length, waiting = waitingThreads().length, tasks = buildTasks();
   $('#k-eyebrow').textContent = fmtDay(TODAY) + ' · ' + (isCoach() ? 'Coach' : 'Assistant');
   $('#k-h1').textContent = (hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening') + ', ' + first(S.profile.display_name) + '.';
-  $('#k-line').textContent = !n ? (isCoach() ? 'No clients yet. Open Clients and tap Add client to create the first login.' : 'No clients yet. They appear here once ' + COACH + ' adds them.')
+  $('#k-line').textContent = !n ? 'No clients yet. Open Clients and tap Add client to create the first login.'
     : (tasks.length ? tasks.length + ' thing' + (tasks.length > 1 ? 's' : '') + ' need' + (tasks.length > 1 ? '' : 's') + ' attention today. ' : 'Nothing needs attention right now. ') + logged + ' of ' + n + ' clients have weighed in.';
   const avgLoss = n ? cs.reduce((a, c) => a + lossPctOf(c, wsOf(c)), 0) / n : 0;
   $('#kpis').innerHTML = [['clients', n, 'clients', ''], ['today', logged + '/' + n, 'weighed in today', ''], ['messages', waiting, 'waiting for a reply', waiting ? 'warm' : ''], ['', avgLoss.toFixed(1) + '%', 'avg lost since start', '']]
@@ -862,7 +862,7 @@ function renderStaff() {
   renderPlans();
 }
 function renderQuick() {
-  $('#k-quick').innerHTML = (isCoach() ? '<button class="btn" type="button" data-first-client="1">Add client</button>' : '')
+  $('#k-quick').innerHTML = '<button class="btn" type="button" data-first-client="1">Add client</button>'
     + '<button class="ghost" type="button" data-open-bc="1">Broadcast a message</button>'
     + (isCoach() ? '<button class="ghost" type="button" data-tab="diet">Write a diet</button>' : '<button class="ghost" type="button" data-tab="messages">Open inbox</button>')
     + (teamThread() ? '<button class="ghost" type="button" data-kth="' + esc(teamThread().id) + '" data-go="messages">Message ' + esc(isCoach() ? 'the assistant' : teamName()) + '</button>' : '');
@@ -1092,7 +1092,7 @@ function renderClientsTable() {
   const maxL = Math.max(...cs.map((c) => lossPctOf(c, wsOf(c))), 0.0001);
   $('#cl-h').textContent = cs.length ? cs.length + ' client' + (cs.length > 1 ? 's' : '') : 'All clients';
   $('#tbl-empty').hidden = !!list.length;
-  $('#tbl-empty').textContent = cs.length ? 'No clients match.' : (isCoach() ? 'No clients yet. Tap Add client to create the first login.' : 'No clients yet.');
+  $('#tbl-empty').textContent = cs.length ? 'No clients match.' : 'No clients yet. Tap Add client to create the first login.';
   $('#tbody').innerHTML = list.map((c) => { const ago = lastLogAgo(c), lp = lossPctOf(c, wsOf(c)), d = S.days[c.id], pr = profOf(c), pl = planLeft(c);
     const lqn = liqOf(c).length, lqt = lqn ? ' · ' + liqDone(c) + '/' + lqn + ' liquids' : '';
     const today0 = d ? (d.water || 0) + '/10 water · ' + (d.meals || []).length + ((d.meals || []).length === 1 ? ' meal' : ' meals') + ((d.photos || []).length ? ' · ' + d.photos.length + ' photo' + (d.photos.length > 1 ? 's' : '') : '') : '<span class="muted">Nothing yet</span>';
@@ -1121,7 +1121,7 @@ $('#add-name').addEventListener('input', () => { const u = $('#add-user'); if (!
 $('#add-user').addEventListener('input', (e) => { e.target.dataset.touched = e.target.value ? '1' : ''; });
 $('#add-pw-new').addEventListener('click', () => { $('#add-pw').value = tempPassword(); });
 $('#add-form').addEventListener('submit', async (e) => {
-  e.preventDefault(); if (!isCoach()) return;
+  e.preventDefault(); if (!isStaff()) return;
   const err = $('#add-err'), fail = (m) => { err.textContent = m; err.hidden = false; };
   const name = $('#add-name').value.trim().replace(/\s+/g, ' '), user = $('#add-user').value.trim().toLowerCase(), pw = $('#add-pw').value.trim();
   const start = parseFloat($('#add-start').value), goalRaw = $('#add-goal').value.trim(), goal = goalRaw ? parseFloat(goalRaw) : null;
