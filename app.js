@@ -304,7 +304,7 @@ async function route() {
       renderStaff();
     }
     startRealtime();
-    syncPush().catch(() => {}).then(renderNotify);
+    syncPush().catch(() => { S.pushErr = 'Notifications couldn’t be set up in this browser. Private or incognito tabs can’t receive them.'; }).then(renderNotify);
     if (pendingLink) openLink(pendingLink);
   } catch (e) {
     if (/JWT|session|refresh/i.test((e && e.message) || '')) { signOut(); return; }
