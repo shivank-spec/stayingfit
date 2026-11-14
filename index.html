@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="app.css?v=4">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><clipPath id="gclip"><path d="M6 4 H54 L48 84 H12 Z"></path></clipPath></defs></svg>
@@ -180,9 +180,9 @@
 
     <section class="card s4" aria-labelledby="cal-h">
       <div class="card-h"><div><span class="eyebrow">Calorie tracker</span><h2 id="cal-h">What did you eat?</h2></div></div>
-      <div class="field"><label class="lbl" for="food-in">Type a food to see its calories</label><input class="input" id="food-in" type="text" autocomplete="off" placeholder="Try dal, poha, paneer…"></div>
+      <div class="field"><label class="lbl" for="food-in">Type what you ate</label><input class="input" id="food-in" type="text" autocomplete="off" maxlength="60" placeholder="Try roti, dal, chilla…"></div>
       <div class="results" id="food-res" role="list" hidden></div>
-      <div class="small muted" id="food-none" hidden style="margin-top:-8px">No match yet. Try a simpler name, like "rice" or "egg".</div>
+      <div class="food-pick" id="food-pick" hidden></div>
       <div style="display:flex;align-items:center;gap:18px;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
         <svg width="96" height="96" viewBox="0 0 100 100" aria-hidden="true"><circle class="ring-t" cx="50" cy="50" r="44"></circle><circle class="ring-v" id="ring" cx="50" cy="50" r="44" style="stroke-dasharray:0 276.5"></circle></svg>
         <div style="display:flex;flex-direction:column;gap:3px"><span style="font:600 30px/1 var(--display)" class="num" id="kcal">0</span><span class="small muted" id="kcal-sub"></span><span class="small muted" id="meal-count"></span></div>
@@ -192,7 +192,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong class="small">Today's meal photos</strong><label class="ghost filebtn">Add photo<input type="file" id="ph-in" accept="image/*" aria-label="Add a meal photo"></label></div>
         <div class="photos" id="photos"></div>
       </div>
-      <p class="small muted">Estimates per typical home serving. Your coach sees what you log.</p>
+      <p class="small muted">Calories are estimates for a typical home serving. Pushpanjali sees what you log.</p>
     </section>
 
     <section class="card s8 water-card" aria-labelledby="wa-h">
@@ -397,9 +397,10 @@
           <div class="field" style="max-width:220px"><label class="lbl" for="dc-start">Starts on</label><input class="input" id="dc-start" type="date"></div>
           <div class="dc-meals">
             <div class="field"><label class="lbl" for="dc-m0">Breakfast</label><textarea class="ta" id="dc-m0" maxlength="400" rows="3"></textarea></div>
-            <div class="field"><label class="lbl" for="dc-m1">Lunch</label><textarea class="ta" id="dc-m1" maxlength="400" rows="3"></textarea></div>
-            <div class="field"><label class="lbl" for="dc-m2">Snack</label><textarea class="ta" id="dc-m2" maxlength="400" rows="3"></textarea></div>
-            <div class="field"><label class="lbl" for="dc-m3">Dinner</label><textarea class="ta" id="dc-m3" maxlength="400" rows="3"></textarea></div>
+            <div class="field"><label class="lbl" for="dc-m1">Mid meal</label><textarea class="ta" id="dc-m1" maxlength="400" rows="3"></textarea></div>
+            <div class="field"><label class="lbl" for="dc-m2">Lunch</label><textarea class="ta" id="dc-m2" maxlength="400" rows="3"></textarea></div>
+            <div class="field"><label class="lbl" for="dc-m3">Snack</label><textarea class="ta" id="dc-m3" maxlength="400" rows="3"></textarea></div>
+            <div class="field"><label class="lbl" for="dc-m4">Dinner</label><textarea class="ta" id="dc-m4" maxlength="400" rows="3"></textarea></div>
           </div>
           <div class="field"><label class="lbl" for="dc-notes">Note for the client (optional)</label><textarea class="ta" id="dc-notes" maxlength="600" rows="2"></textarea></div>
           <div class="err" id="dc-err" role="alert" hidden></div>
@@ -456,6 +457,6 @@
 
 <script src="config.js"></script>
 <script src="supabase-2.117.2.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>
