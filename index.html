@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="app.css?v=5">
+<link rel="stylesheet" href="app.css?v=6">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><clipPath id="gclip"><path d="M6 4 H54 L48 84 H12 Z"></path></clipPath></defs></svg>
@@ -25,7 +25,7 @@
 <!-- ============ before sign-in ============ -->
 <main class="gate" id="gate-setup" hidden>
   <div class="gate-card">
-    <div class="auth-brand"><span class="auth-logo"><svg width="22" height="22" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#fff;stroke-width:2.6" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg></span>Stayingfit</div>
+    <div class="auth-brand"><span class="auth-logo"><img src="mark.svg" alt="" width="24" height="24"></span>Stayingfit</div>
     <h1>Almost ready</h1>
     <p>Add the Supabase project URL and publishable key to <code>config.js</code>, then reload. The README walks through it step by step.</p>
   </div>
@@ -33,7 +33,7 @@
 
 <main class="gate" id="gate-loading" aria-live="polite">
   <div class="gate-card" style="align-items:center;text-align:center">
-    <div class="auth-brand"><span class="auth-logo"><svg width="22" height="22" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#fff;stroke-width:2.6" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg></span>Stayingfit</div>
+    <div class="auth-brand"><span class="auth-logo"><img src="mark.svg" alt="" width="24" height="24"></span>Stayingfit</div>
     <p id="loading-text"><span class="spin"></span> Loading…</p>
   </div>
 </main>
@@ -41,9 +41,9 @@
 <main class="gate auth" id="gate-login" hidden>
   <div class="gate-card">
     <div class="auth-head">
-      <span class="auth-logo lg"><svg width="34" height="34" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#fff;stroke-width:2.6" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg></span>
-      <h1 class="auth-name">Stayingfit</h1>
-      <p class="auth-sub" id="land-sub">Pushpanjali Khaitan's nutrition coaching</p>
+      <img class="auth-full" src="logo.svg" alt="Stayingfit, A Toast to Health, by Pushpanjali Khaitan" width="270" height="98">
+      <h1 class="auth-name vh">Stayingfit</h1>
+      <p class="auth-sub" id="land-sub" hidden>Pushpanjali Khaitan's nutrition coaching</p>
     </div>
     <form id="li-form" novalidate>
       <div class="field"><label class="lbl" for="li-user">Username</label><input class="input" id="li-user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="60" required></div>
@@ -59,7 +59,7 @@
 
 <main class="gate" id="gate-newpw" hidden>
   <div class="gate-card">
-    <div class="auth-brand"><span class="auth-logo"><svg width="22" height="22" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#fff;stroke-width:2.6" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg></span>Stayingfit</div>
+    <div class="auth-brand"><span class="auth-logo"><img src="mark.svg" alt="" width="24" height="24"></span>Stayingfit</div>
     <div id="fl-ask" class="fl-ask">
       <div>
         <h1 id="fl-h">Welcome</h1>
@@ -91,7 +91,7 @@
 
 <main class="gate" id="gate-noprofile" hidden>
   <div class="gate-card">
-    <div class="auth-brand"><span class="auth-logo"><svg width="22" height="22" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#fff;stroke-width:2.6" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg></span>Stayingfit</div>
+    <div class="auth-brand"><span class="auth-logo"><img src="mark.svg" alt="" width="24" height="24"></span>Stayingfit</div>
     <h1>This login isn't set up</h1>
     <p>Ask Pushpanjali to check your account.</p>
     <button class="btn" type="button" data-signout>Back to sign in</button>
@@ -100,7 +100,7 @@
 
 <main class="gate" id="gate-consent" hidden>
   <div class="gate-card">
-    <div class="auth-brand"><span class="auth-logo"><svg width="22" height="22" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#fff;stroke-width:2.6" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"/></svg></span>Stayingfit</div>
+    <div class="auth-brand"><span class="auth-logo"><img src="mark.svg" alt="" width="24" height="24"></span>Stayingfit</div>
     <h1>Before you start</h1>
     <p>Stayingfit keeps what you log (weight, meals, meal photos, water and workouts) so Pushpanjali and her team can guide your plan.</p>
     <ul class="consent-list">
@@ -118,7 +118,7 @@
 <div id="app" hidden>
 <header class="nav">
   <div class="nav-in">
-    <span class="brand"><svg width="26" height="26" viewBox="0 0 28 28" aria-hidden="true"><path class="ic" style="stroke:#fff;stroke-width:2.3" d="M4 20 L10 12 L15 16 L24 6 M18 6 H24 V12"></path></svg>Stayingfit</span>
+    <span class="brand"><span class="brand-mark"><img src="mark.svg" alt="" width="22" height="22"></span>Stayingfit</span>
     <span class="nav-who" id="nav-who"></span>
     <span class="nav-act">
       <button class="navbtn" id="snd" type="button" aria-pressed="true">Sound on</button>
@@ -463,6 +463,6 @@
 
 <script src="config.js"></script>
 <script src="supabase-2.117.2.js"></script>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>

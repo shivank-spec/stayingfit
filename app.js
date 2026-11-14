@@ -790,8 +790,9 @@ async function loadStaff() {
   (tk.data || []).forEach((x) => { (S.ticks[x.client_id] = S.ticks[x.client_id] || {})[x.liquid_id] = x.at; });
   await loadComments();
   await loadThreads();
+  if (!S.threads.some((x) => x.kind === 'team')) { const r = await S.sb.rpc('ensure_team'); if (!r.error) await loadThreads(); }
   const mine = inboxThreads();
-  if (!S.kThread || !mine.find((x) => x.id === S.kThread)) { const wt = mine.find((x) => !x.last_from_staff) || mine[0]; S.kThread = wt ? wt.id : null; }
+  if (!S.kThread || !mine.find((x) => x.id === S.kThread)) { const wt = mine.find(needsMe) || mine.find((x) => x.kind !== 'team') || mine[0]; S.kThread = wt ? wt.id : null; }
   await loadMsgs(S.kThread);
 }
 let staffBusy = false;
@@ -802,10 +803,15 @@ async function refreshStaff() {
 const wsOf = (c) => S.allWeights[c.id] || [];
 const profOf = (c) => S.profiles[c.user_id] || {};
 /* the coach's own inbox is her chats and family groups; she can also look at the assistant's chats */
-const inboxKinds = () => (isCoach() ? (S.ibox === 'asst' ? ['asst'] : ['dm', 'family']) : ['asst', 'family']);
-const inboxThreads = () => S.threads.filter((t) => inboxKinds().indexOf(t.kind) > -1);
-const waitingThreads = () => S.threads.filter((t) => !t.last_from_staff && (!isCoach() || t.kind !== 'asst'));
-const threadName = (t) => (t.kind === 'family' ? t.title : ((S.clients.find((c) => c.id === t.client_id) || {}).name || t.title));
+const inboxKinds = () => (isCoach() ? (S.ibox === 'asst' ? ['asst'] : ['team', 'dm', 'family']) : ['team', 'asst', 'family']);
+const inboxThreads = () => S.threads.filter((t) => inboxKinds().indexOf(t.kind) > -1).sort((a, b) => (b.kind === 'team') - (a.kind === 'team'));
+/* a client chat needs the team when the client spoke last; the team chat needs me when the other person spoke last */
+const needsMe = (t) => (t.kind === 'team' ? !!t.last_sender && t.last_sender !== S.session.user.id : !t.last_from_staff);
+const waitingThreads = () => S.threads.filter((t) => needsMe(t) && (!isCoach() || t.kind !== 'asst'));
+const teamThread = () => S.threads.find((t) => t.kind === 'team');
+/* who is on the other side of the team chat: the assistant for the coach, the coach for the assistant */
+const teamName = () => { const other = Object.values(S.profiles).filter((p) => p.role === (isCoach() ? 'assistant' : 'coach')); return other.length === 1 ? other[0].display_name : isCoach() ? (other.length ? 'Assistants' : 'Assistant') : COACH; };
+const threadName = (t) => (t.kind === 'team' ? teamName() : t.kind === 'family' ? t.title : ((S.clients.find((c) => c.id === t.client_id) || {}).name || t.title));
 const curDiet = (c) => { const a = (S.diets[c.id] || []).filter((x) => x.start_date <= TODAY); return a[a.length - 1] || null; };
 const dietDay = (dt) => diffDays(dt.start_date, TODAY) + 1;
 const liqOf = (c) => S.liq[c.id] || [];
@@ -858,7 +864,8 @@ function renderStaff() {
 function renderQuick() {
   $('#k-quick').innerHTML = (isCoach() ? '<button class="btn" type="button" data-first-client="1">Add client</button>' : '')
     + '<button class="ghost" type="button" data-open-bc="1">Broadcast a message</button>'
-    + (isCoach() ? '<button class="ghost" type="button" data-tab="diet">Write a diet</button>' : '<button class="ghost" type="button" data-tab="messages">Open inbox</button>');
+    + (isCoach() ? '<button class="ghost" type="button" data-tab="diet">Write a diet</button>' : '<button class="ghost" type="button" data-tab="messages">Open inbox</button>')
+    + (teamThread() ? '<button class="ghost" type="button" data-kth="' + esc(teamThread().id) + '" data-go="messages">Message ' + esc(isCoach() ? 'the assistant' : teamName()) + '</button>' : '');
 }
 /* every meal photo sent today, across all clients */
 async function renderPhotos() {
@@ -1030,7 +1037,7 @@ function renderW7() {
 /* follow-ups: what needs doing today, most urgent first */
 function buildTasks() {
   const out = [], hr = istHour();
-  waitingThreads().forEach((t) => out.push({ p: 1, title: threadName(t) + (t.kind === 'family' ? ' (family group)' : '') + ' is waiting for a reply', sub: '“' + (t.last_text || '') + '” · ' + msgTime(t.last_at), acts: [['Reply', 'data-kth="' + esc(t.id) + '" data-go="messages"', 'btn'], ['Mark done', 'data-done-thread="' + esc(t.id) + '"', 'ghost']] }));
+  waitingThreads().forEach((t) => out.push({ p: 1, title: t.kind === 'team' ? threadName(t) + ' sent you a message' : threadName(t) + (t.kind === 'family' ? ' (family group)' : '') + ' is waiting for a reply', sub: '“' + (t.last_text || '') + '” · ' + msgTime(t.last_at), acts: [['Reply', 'data-kth="' + esc(t.id) + '" data-go="messages"', 'btn'], ['Mark done', 'data-done-thread="' + esc(t.id) + '"', 'ghost']] }));
   S.clients.forEach((c) => {
     const pr = profOf(c), ago = lastLogAgo(c), age = diffDays(String(c.created_at).slice(0, 10), TODAY);
     if (!c.consent_at) { if (age >= 1) out.push({ p: 3, title: c.name + ' hasn’t signed in yet', sub: 'Added ' + fmtShort(String(c.created_at).slice(0, 10)) + '. Check they got their login.', acts: isCoach() ? [['Send new login', 'data-pick="' + esc(c.id) + '" data-dmode="reset"', 'ghost']] : [] }); return; }
@@ -1237,16 +1244,16 @@ async function loadWeekPhotos(c) {
 
 /* inbox */
 function renderInbox() {
-  const ths = inboxThreads(), waiting = ths.filter((t) => !t.last_from_staff), asstView = isCoach() && S.ibox === 'asst';
+  const ths = inboxThreads(), waiting = ths.filter(needsMe), asstView = isCoach() && S.ibox === 'asst';
   $('#ib-count').textContent = waiting.length ? waiting.length + ' waiting for a reply' : 'All caught up';
   $('#ib-filter').innerHTML = isCoach() ? [['mine', 'My chats'], ['asst', 'Assistant’s chats']].map((f) => '<button class="chip" type="button" data-ibox="' + f[0] + '" aria-pressed="' + ((S.ibox || 'mine') === f[0]) + '">' + f[1] + '</button>').join('') : '';
   if (S.kThread && !ths.find((t) => t.id === S.kThread)) S.kThread = null;
-  $('#k-threads').innerHTML = ths.length ? ths.map((t) => '<button class="th-item" type="button" data-kth="' + esc(t.id) + '" aria-pressed="' + (t.id === S.kThread) + '"><span class="avatar"' + (t.kind === 'family' ? ' style="background:var(--slate);color:#fff"' : '') + '>' + esc(t.kind === 'family' ? 'FG' : initials(threadName(t))) + '</span><span style="flex:1;min-width:0;display:flex;flex-direction:column"><strong style="font-size:14px">' + esc(threadName(t)) + (t.kind === 'family' ? ' <span class="small muted" style="font-weight:500">· family</span>' : '') + '</strong><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(t.last_text || 'No messages yet') + '</span></span>' + (!t.last_from_staff ? '<span class="dot-new" title="Waiting for a reply"></span>' : '') + '</button>').join('')
+  $('#k-threads').innerHTML = ths.length ? ths.map((t) => '<button class="th-item" type="button" data-kth="' + esc(t.id) + '" aria-pressed="' + (t.id === S.kThread) + '"><span class="avatar"' + (t.kind === 'family' ? ' style="background:var(--slate);color:#fff"' : t.kind === 'team' ? ' style="background:var(--forest);color:#fff"' : '') + '>' + esc(t.kind === 'family' ? 'FG' : initials(threadName(t))) + '</span><span style="flex:1;min-width:0;display:flex;flex-direction:column"><strong style="font-size:14px">' + esc(threadName(t)) + (t.kind === 'family' ? ' <span class="small muted" style="font-weight:500">· family</span>' : t.kind === 'team' ? ' <span class="small muted" style="font-weight:500">· team chat</span>' : '') + '</strong><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(t.last_text || (t.kind === 'team' ? 'Only you and ' + (isCoach() ? 'the assistant' : teamName()) + ' see this chat' : 'No messages yet')) + '</span></span>' + (needsMe(t) ? '<span class="dot-new" title="Waiting for a reply"></span>' : '') + '</button>').join('')
     : '<div class="small muted" style="padding:12px">' + (asstView ? 'No chats between clients and the assistant yet.' : 'No conversations yet. Open a client’s profile and tap Message.') + '</div>';
   const kt = ths.find((t) => t.id === S.kThread);
   $('#k-inbox').classList.toggle('open', !!kt && !!S.kOpen);
-  $('#k-thread-h').textContent = kt ? threadName(kt) + (kt.kind === 'family' ? ' · family group' : kt.kind === 'asst' && isCoach() ? ' · with the assistant' : '') + ' · ' + msgTime(kt.last_at) : '';
-  $('#k-thread-act').innerHTML = kt && !kt.last_from_staff ? '<button class="ghost" type="button" data-done-thread="' + esc(kt.id) + '">Mark done</button>' : '';
+  $('#k-thread-h').textContent = kt ? threadName(kt) + (kt.kind === 'team' ? ' · team chat, clients can’t see this' : kt.kind === 'family' ? ' · family group' : kt.kind === 'asst' && isCoach() ? ' · with the assistant' : '') + ' · ' + msgTime(kt.last_at) : '';
+  $('#k-thread-act').innerHTML = kt && needsMe(kt) ? '<button class="ghost" type="button" data-done-thread="' + esc(kt.id) + '">Mark done</button>' : '';
   $('#k-comp').hidden = !kt;
   paintThread('#k-thread', S.kThread, kt ? 'No messages yet. Say hello.' : 'Pick a conversation.');
 }
@@ -1493,7 +1500,7 @@ document.addEventListener('click', (e) => {
   if (t.dataset.sort) { const k = t.dataset.sort; if (S.sortK === k) S.sortDir = -S.sortDir; else { S.sortK = k; S.sortDir = (k === 'name' || k === 'last' || k === 'end') ? 1 : -1; } renderClientsTable(); return; }
   if (t.dataset.pick) { openDrawer(t.dataset.pick, t.dataset.dmode || null); return; }
   if (t.dataset.closeDrawer) { closeDrawer(); return; }
-  if (t.dataset.ibox) { S.ibox = t.dataset.ibox; S.kOpen = false; const m = inboxThreads(); S.kThread = (m.find((x) => !x.last_from_staff) || m[0] || {}).id || null; loadMsgs(S.kThread).then(renderInbox).catch((er) => toast(friendly(er))); return; }
+  if (t.dataset.ibox) { S.ibox = t.dataset.ibox; S.kOpen = false; const m = inboxThreads(); S.kThread = (m.find(needsMe) || m[0] || {}).id || null; loadMsgs(S.kThread).then(renderInbox).catch((er) => toast(friendly(er))); return; }
   if (t.dataset.openBc) { openBroadcast(); return; }
   if (t.dataset.lqRm) { const row = t.closest('.lq-row'); if (row) row.remove(); return; }
   if (t.dataset.dietClient) { S.sel = t.dataset.dietClient; S.dietFor = null; renderDiet(); return; }
