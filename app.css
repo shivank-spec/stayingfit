@@ -210,3 +210,10 @@ tr.click:hover td{background:var(--soft)}
 }
 @media (max-width:700px){.sbar{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:1fr}}
 .chg{font-weight:700}.chg.down{color:var(--forest)}.chg.up{color:var(--ember)}
+.food-pick{display:flex;flex-direction:column;gap:14px;padding:14px;margin-top:-8px;border:1px solid var(--forest);border-radius:8px;background:color-mix(in srgb,var(--forest) 5%,var(--card))}
+.fp-q{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.fp-q .chip{min-width:44px;height:44px;border-radius:8px;background:var(--card)}
+.fp-q .chip[aria-pressed="true"]{background:var(--forest);border-color:var(--forest);color:#fff}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--card);margin-left:auto}
+.stepper .st{appearance:none;border:0;background:none;width:44px;height:42px;font-size:20px;line-height:1;cursor:pointer;color:var(--ink)}
+.stepper .num{min-width:36px;text-align:center;font-weight:700}
