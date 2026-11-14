@@ -1,11 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Stayingfit</title>
 <meta name="description" content="Stayingfit: Pushpanjali Khaitan's coaching app. Log weight, water, meals and workouts, and stay in touch with your coach.">
-<meta name="theme-color" content="#0f2a1b">
+<meta name="theme-color" content="#ffffff">
+<meta name="color-scheme" content="light">
 <meta name="referrer" content="no-referrer">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -13,11 +14,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Stayingfit">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preload" href="fonts/pjs.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="app.css?v=6">
+<link rel="stylesheet" href="theme.css?v=1">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><clipPath id="gclip"><path d="M6 4 H54 L48 84 H12 Z"></path></clipPath></defs></svg>
@@ -118,33 +119,36 @@
 <div id="app" hidden>
 <header class="nav">
   <div class="nav-in">
-    <span class="brand"><span class="brand-mark"><img src="mark.svg" alt="" width="22" height="22"></span>Stayingfit</span>
+    <span class="brand"><span class="brand-mark"><img src="mark.svg" alt="" width="24" height="24"></span><span class="brand-name">Staying<b>fit</b></span></span>
+    <div class="stabs ctabs" id="ctabs" role="tablist" aria-label="Sections" hidden>
+      <button class="stab" type="button" role="tab" data-ctab="home" aria-selected="true">Home</button>
+      <button class="stab" type="button" role="tab" data-ctab="diet" aria-selected="false">Diet</button>
+      <button class="stab" type="button" role="tab" data-ctab="track" aria-selected="false">Track</button>
+      <button class="stab" type="button" role="tab" data-ctab="chat" aria-selected="false">Chat<span class="cnt" data-unread hidden></span></button>
+      <button class="stab" type="button" role="tab" data-ctab="me" aria-selected="false">Progress</button>
+    </div>
+    <div class="stabs" role="tablist" aria-label="Sections" id="stabs" hidden></div>
     <span class="nav-who" id="nav-who"></span>
     <span class="nav-act">
-      <button class="navbtn" id="snd" type="button" aria-pressed="true">Sound on</button>
-      <button class="navbtn" id="pw-open" type="button">Account</button>
-      <button class="navbtn" type="button" data-signout>Sign out</button>
+      <button class="navbtn icon" id="rf" type="button" aria-label="Refresh"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/></svg></button>
+      <button class="navbtn me" id="pw-open" type="button" aria-label="Account and settings"><span class="avatar" id="nav-av" aria-hidden="true"></span><span class="nav-me-t" id="nav-me-t">Account</span></button>
+      <button class="navbtn out" type="button" data-signout>Sign out</button>
     </span>
   </div>
 </header>
+<div id="offline" role="status" hidden>No internet connection</div>
 
 <div class="wrap">
 <div id="nt" hidden></div>
 
 <!-- ============ CLIENT ============ -->
 <section id="view-client" hidden>
-  <div class="banner" id="c-renew" hidden style="align-items:center;flex-wrap:wrap;border-color:var(--ember)">
+  <div class="banner" id="c-renew" data-scr="home" hidden style="align-items:center;flex-wrap:wrap;border-color:var(--ember)">
     <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="color:var(--ember);flex-shrink:0"><path class="ic" d="M12 8v5l3 2M21 12a9 9 0 1 1-9-9"/></svg>
     <span style="flex:1;min-width:200px" id="c-renew-t"></span>
   </div>
 
-  <section class="hero" aria-labelledby="c-h1">
-    <svg class="contours" viewBox="0 0 1440 240" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M-20 226 C 160 186 320 256 540 216 S 880 146 1100 186 T 1460 156"></path>
-      <path d="M-20 196 C 180 156 340 226 560 186 S 900 116 1120 156 T 1460 126"></path>
-      <path d="M-20 166 C 200 126 360 196 580 156 S 920 86 1140 126 T 1460 96"></path>
-      <path d="M-20 136 C 220 96 380 166 600 126 S 940 56 1160 96 T 1460 66"></path>
-    </svg>
+  <section class="hero" data-scr="home" aria-labelledby="c-h1">
     <div class="hero-in">
       <div class="hero-copy">
         <div class="eyebrow" id="c-date"></div>
@@ -153,10 +157,10 @@
       </div>
       <div class="goal-ring" id="goal-ring" role="img" aria-label="Progress to goal"></div>
       <div class="stats">
-        <div class="stat" id="st-stars"><span class="stat-num"><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><polygon class="star" points="12 2.5 14.9 8.6 21.5 9.3 16.5 13.8 17.9 20.3 12 17 6.1 20.3 7.5 13.8 2.5 9.3 9.1 8.6"></polygon></svg><span class="num" id="v-stars">0</span></span><span class="small muted">stars earned</span></div>
-        <div class="stat"><span class="stat-num"><svg class="flame" id="flame" width="26" height="30" viewBox="0 0 24 26" aria-hidden="true"><path class="flame-o" d="M12 1c1.2 3.8-1.8 5.6-1.8 8.4 0 1.5 1 2.6 2.4 2.6 1.7 0 2.6-1.4 2.3-3.2 2.1 1.7 3.4 4.2 3.4 6.6 0 4-3 7.1-6.3 7.1S5.7 19.6 5.7 15.8C5.7 10.6 10.4 8 12 1z"></path><path class="flame-i" d="M12 15.2c.9 1.4 2.2 2.4 2.2 4 0 1.4-1 2.6-2.2 2.6s-2.2-1.1-2.2-2.5c0-1.7 1.4-2.6 2.2-4.1z"></path></svg><span class="num" id="v-streak">0</span></span><span class="small muted">day streak</span></div>
+        <div class="stat" id="st-stars"><span class="stat-num"><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><polygon class="star" points="12 2.5 14.9 8.6 21.5 9.3 16.5 13.8 17.9 20.3 12 17 6.1 20.3 7.5 13.8 2.5 9.3 9.1 8.6"></polygon></svg><span class="num" id="v-stars">0</span></span><span class="small muted"><span class="x-lg">stars earned</span><span class="x-sm">stars</span></span></div>
+        <div class="stat"><span class="stat-num"><svg class="flame" id="flame" width="26" height="30" viewBox="0 0 24 26" aria-hidden="true"><path class="flame-o" d="M12 1c1.2 3.8-1.8 5.6-1.8 8.4 0 1.5 1 2.6 2.4 2.6 1.7 0 2.6-1.4 2.3-3.2 2.1 1.7 3.4 4.2 3.4 6.6 0 4-3 7.1-6.3 7.1S5.7 19.6 5.7 15.8C5.7 10.6 10.4 8 12 1z"></path><path class="flame-i" d="M12 15.2c.9 1.4 2.2 2.4 2.2 4 0 1.4-1 2.6-2.2 2.6s-2.2-1.1-2.2-2.5c0-1.7 1.4-2.6 2.2-4.1z"></path></svg><span class="num" id="v-streak">0</span></span><span class="small muted"><span class="x-lg">day streak</span><span class="x-sm">streak</span></span></div>
         <div class="stat"><span class="stat-num num" id="v-lost">0.0</span><span class="small muted" id="v-lost-sub">kg lost</span></div>
-        <div class="stat"><span class="stat-num num" id="v-ch">0/3</span><span class="small muted">challenges today</span></div>
+        <div class="stat stat-ch"><span class="stat-num num" id="v-ch">0/3</span><span class="small muted">challenges today</span></div>
       </div>
     </div>
     <div class="hero-foot">
@@ -169,85 +173,94 @@
   </section>
 
   <div class="grid">
-    <section class="card s8" aria-labelledby="wt-h">
-      <div class="card-h"><div><span class="eyebrow">Morning weigh-in</span><h2 id="wt-h">Weight trend</h2></div><span class="tag slate" id="goal-tag">Goal</span></div>
-      <form id="wt-form" class="row" novalidate>
-        <div class="field" style="width:190px"><label class="lbl" for="wt-in">Today's weight (kg)</label><input class="input num" id="wt-in" type="number" step="0.1" min="30" max="250" inputmode="decimal" placeholder="e.g. 73.6"></div>
-        <button class="btn" type="submit">Log weight · +1 star</button>
-        <span class="small muted" style="padding-bottom:12px">Weigh in before breakfast for a consistent read.</span>
-      </form>
-      <div class="err" id="wt-err" role="alert" hidden></div>
-      <div class="notice" id="wt-done" hidden></div>
-      <div id="chart-box"></div>
-      <div class="kv" id="wt-kv"></div>
-      <div class="jr-wrap" id="journey"></div>
+    <section class="card s5" data-scr="home" aria-labelledby="td-h">
+      <div class="card-h"><div><span class="eyebrow">Today</span><h2 id="td-h">Your day</h2></div><span class="tag" id="td-count"></span></div>
+      <div class="td" id="td"></div>
     </section>
 
-    <section class="card s4" aria-labelledby="cal-h">
-      <div class="card-h"><div><span class="eyebrow">Calorie tracker</span><h2 id="cal-h">What did you eat?</h2></div></div>
-      <div class="field"><label class="lbl" for="food-in">Type what you ate</label><input class="input" id="food-in" type="text" autocomplete="off" maxlength="60" placeholder="Try roti, dal, chilla…"></div>
-      <div class="results" id="food-res" role="list" hidden></div>
-      <div class="food-pick" id="food-pick" hidden></div>
-      <div style="display:flex;align-items:center;gap:18px;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
-        <svg width="96" height="96" viewBox="0 0 100 100" aria-hidden="true"><circle class="ring-t" cx="50" cy="50" r="44"></circle><circle class="ring-v" id="ring" cx="50" cy="50" r="44" style="stroke-dasharray:0 276.5"></circle></svg>
-        <div style="display:flex;flex-direction:column;gap:3px"><span style="font:600 30px/1 var(--display)" class="num" id="kcal">0</span><span class="small muted" id="kcal-sub"></span><span class="small muted" id="meal-count"></span></div>
-      </div>
-      <div id="meals"></div>
-      <div style="display:flex;flex-direction:column;gap:10px;padding-top:12px;border-top:1px solid var(--line)">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong class="small">Today's meal photos</strong><label class="ghost filebtn">Add photo<input type="file" id="ph-in" accept="image/*" aria-label="Add a meal photo"></label></div>
-        <div class="photos" id="photos"></div>
-        <div id="pcs" hidden></div>
-      </div>
-      <p class="small muted">Calories are estimates for a typical home serving. Pushpanjali sees what you log.</p>
-    </section>
+    <div class="col s8" data-scr="track">
+      <section class="card" aria-labelledby="wt-h">
+        <div class="card-h"><div><span class="eyebrow">Morning weigh-in</span><h2 id="wt-h">Weight trend</h2></div><span class="tag slate" id="goal-tag">Goal</span></div>
+        <form id="wt-form" class="row" novalidate>
+          <div class="field" style="width:190px"><label class="lbl" for="wt-in">Today's weight (kg)</label><input class="input num" id="wt-in" type="number" step="0.1" min="30" max="250" inputmode="decimal" placeholder="e.g. 73.6"></div>
+          <button class="btn" type="submit">Log weight · +1 star</button>
+          <span class="small muted" style="padding-bottom:12px">Weigh in before breakfast for a consistent read.</span>
+        </form>
+        <div class="err" id="wt-err" role="alert" hidden></div>
+        <div class="notice" id="wt-done" hidden></div>
+        <div id="chart-box"></div>
+        <div class="kv" id="wt-kv"></div>
+        <div class="jr-wrap" id="journey"></div>
+      </section>
 
-    <section class="card s8 water-card" aria-labelledby="wa-h">
-      <div class="card-h"><div><span class="eyebrow">Hydration</span><h2 id="wa-h">0 of 10 glasses</h2></div><span class="small muted" id="wa-ml"></span></div>
-      <div class="glasses" id="glasses" role="group" aria-label="Water glasses, tap to fill"></div>
-      <div class="small muted" style="display:flex;gap:10px;align-items:center"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="color:var(--water);flex-shrink:0"><path class="ic" d="M12 3.5c2.8 3.6 5.5 6.6 5.5 9.9a5.5 5.5 0 0 1-11 0c0-3.3 2.7-6.3 5.5-9.9z"></path></svg><span id="wa-tip"></span></div>
-    </section>
+      <section class="card water-card" aria-labelledby="wa-h">
+        <div class="card-h"><div><span class="eyebrow">Hydration</span><h2 id="wa-h">0 of 10 glasses</h2></div><span class="small muted" id="wa-ml"></span></div>
+        <div class="glasses" id="glasses" role="group" aria-label="Water glasses, tap to fill"></div>
+        <div class="small muted" style="display:flex;gap:10px;align-items:center"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="color:var(--water);flex-shrink:0"><path class="ic" d="M12 3.5c2.8 3.6 5.5 6.6 5.5 9.9a5.5 5.5 0 0 1-11 0c0-3.3 2.7-6.3 5.5-9.9z"></path></svg><span id="wa-tip"></span></div>
+      </section>
+    </div>
 
-    <section class="card s4" aria-labelledby="ex-h">
-      <div class="card-h"><div><span class="eyebrow">Movement</span><h2 id="ex-h">Log a workout</h2></div></div>
-      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px" id="ex-types" role="group" aria-label="Activity type"></div>
-      <form class="row" id="ex-form" novalidate>
-        <div class="field" style="flex:1"><label class="lbl" for="ex-min">Duration (minutes)</label><input class="input num" id="ex-min" type="number" min="5" max="300" step="5" value="30"></div>
-        <button class="btn" type="submit" id="ex-btn">Log walk</button>
-      </form>
-      <div class="err" id="ex-err" role="alert" hidden></div>
-      <div style="display:flex;flex-direction:column;gap:8px;padding-top:14px;border-top:1px solid var(--line)">
-        <div style="display:flex;justify-content:space-between" class="small"><strong>Today</strong><span class="muted num" id="ex-total">0 of 30 min</span></div>
-        <div class="track" style="height:12px"><div class="fill" id="ex-fill" style="width:0%;background:var(--slate)"></div></div>
-        <div id="ex-list"></div>
-      </div>
-    </section>
+    <div class="col s4" data-scr="track">
+      <section class="card" aria-labelledby="cal-h">
+        <div class="card-h"><div><span class="eyebrow">Calorie tracker</span><h2 id="cal-h">What did you eat?</h2></div></div>
+        <div class="field"><label class="lbl" for="food-in">Type what you ate</label><input class="input" id="food-in" type="text" autocomplete="off" maxlength="60" placeholder="Try roti, dal, chilla…"></div>
+        <div class="results" id="food-res" role="list" hidden></div>
+        <div class="food-pick" id="food-pick" hidden></div>
+        <div style="display:flex;align-items:center;gap:18px;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+          <svg width="96" height="96" viewBox="0 0 100 100" aria-hidden="true"><circle class="ring-t" cx="50" cy="50" r="44"></circle><circle class="ring-v" id="ring" cx="50" cy="50" r="44" style="stroke-dasharray:0 276.5"></circle></svg>
+          <div style="display:flex;flex-direction:column;gap:3px"><span style="font:600 30px/1 var(--display)" class="num" id="kcal">0</span><span class="small muted" id="kcal-sub"></span><span class="small muted" id="meal-count"></span></div>
+        </div>
+        <div id="meals"></div>
+        <div style="display:flex;flex-direction:column;gap:10px;padding-top:12px;border-top:1px solid var(--line)">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong class="small">Today's meal photos</strong><label class="ghost filebtn">Add photo<input type="file" id="ph-in" accept="image/*" aria-label="Add a meal photo"></label></div>
+          <div class="photos" id="photos"></div>
+          <div id="pcs" hidden></div>
+        </div>
+        <p class="small muted">Calories are estimates for a typical home serving. Pushpanjali sees what you log.</p>
+      </section>
 
-    <section class="card s5" aria-labelledby="lq-h">
+      <section class="card" aria-labelledby="ex-h">
+        <div class="card-h"><div><span class="eyebrow">Movement</span><h2 id="ex-h">Log a workout</h2></div></div>
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px" id="ex-types" role="group" aria-label="Activity type"></div>
+        <form class="row" id="ex-form" novalidate>
+          <div class="field" style="flex:1"><label class="lbl" for="ex-min">Duration (minutes)</label><input class="input num" id="ex-min" type="number" min="5" max="300" step="5" value="30"></div>
+          <button class="btn" type="submit" id="ex-btn">Log walk</button>
+        </form>
+        <div class="err" id="ex-err" role="alert" hidden></div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding-top:14px;border-top:1px solid var(--line)">
+          <div style="display:flex;justify-content:space-between" class="small"><strong>Today</strong><span class="muted num" id="ex-total">0 of 30 min</span></div>
+          <div class="track" style="height:12px"><div class="fill" id="ex-fill" style="width:0%;background:var(--slate)"></div></div>
+          <div id="ex-list"></div>
+        </div>
+      </section>
+    </div>
+
+    <section class="card s5" data-scr="diet" aria-labelledby="lq-h">
       <div class="card-h"><div><span class="eyebrow">Daily liquids</span><h2 id="lq-h">Daily liquids</h2></div><span class="tag gold">+2 stars</span></div>
       <div class="lq-list" id="lq-list"></div>
       <span class="small muted" id="lq-tip"></span>
     </section>
 
-    <section class="card s7" aria-labelledby="pl-h">
+    <section class="card s7" data-scr="home diet" aria-labelledby="pl-h">
       <div class="card-h"><div><span class="eyebrow" id="pl-eyebrow">Your diet</span><h2 id="pl-h">From Pushpanjali</h2></div></div>
       <div id="plan-today"></div>
       <div id="tomorrow"></div>
     </section>
 
-    <section class="card s7" aria-labelledby="ms-h">
+    <section class="card s12 chat-card" data-scr="chat" aria-labelledby="ms-h">
       <div class="card-h"><div><span class="eyebrow">Messages</span><h2 id="ms-h">Chat</h2></div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap" id="c-threads" role="group" aria-label="Conversations"></div>
       <div class="thread" id="c-thread" aria-live="polite"></div>
       <form class="composer" id="c-comp" novalidate><label class="sr" for="c-comp-in">Message</label><input class="input" id="c-comp-in" type="text" autocomplete="off" maxlength="1000" placeholder="Write a message…"><button class="btn" type="submit">Send</button></form>
     </section>
 
-    <section class="card s5" aria-labelledby="ch-h">
+    <section class="card s5" data-scr="me" aria-labelledby="ch-h">
       <div class="card-h"><div><span class="eyebrow">Today's challenges</span><h2 id="ch-h">Three wins before bed</h2></div><span class="tag gold">+5 bonus for all three</span></div>
       <div id="challenges" style="display:flex;flex-direction:column;gap:18px"></div>
       <div class="notice" id="ch-line"></div>
     </section>
 
-    <section class="card s12" aria-labelledby="bt-h">
+    <section class="card s12" data-scr="me" aria-labelledby="bt-h">
       <div class="card-h"><div><span class="eyebrow">Blood tests</span><h2 id="bt-h">Latest report</h2></div><button class="ghost" type="button" id="bt-toggle" aria-expanded="false" aria-controls="bt-form">Add a result</button></div>
       <div id="hs-consent" class="notice" hidden style="display:flex;flex-direction:column;gap:12px">
         <strong>Share blood test results with your coach?</strong>
@@ -270,12 +283,12 @@
       </div>
     </section>
 
-    <section class="card s12" aria-labelledby="ac-h">
+    <section class="card s7" data-scr="me" aria-labelledby="ac-h">
       <div class="card-h"><div><span class="eyebrow">Achievements</span><h2 id="ac-h">Badges</h2></div><span class="small muted">Each badge is worth 5 stars</span></div>
       <div class="badges" id="badges"></div>
     </section>
 
-    <section class="card s12" aria-labelledby="lb-h">
+    <section class="card s12" data-scr="me" aria-labelledby="lb-h">
       <div class="card-h"><div><span class="eyebrow">Leaderboard · all clients</span><h2 id="lb-h">Leaderboard</h2></div>
         <div class="lbtabs" role="group" aria-label="Rank by">
           <button class="lbtab" type="button" data-lb="loss" aria-pressed="true">Weight lost</button>
@@ -298,8 +311,6 @@
     </div>
     <div class="kpis" id="kpis"></div>
   </section>
-
-  <div class="stabs" role="tablist" aria-label="Sections" id="stabs"></div>
 
   <!-- today / follow-ups -->
   <div class="spanel" id="p-today" role="tabpanel" aria-labelledby="t-today">
@@ -399,7 +410,7 @@
           <div class="field" style="width:220px"><label class="lbl" for="dc-client">Client</label><select class="select" id="dc-client"></select></div></div>
         <div id="dc-current"></div>
         <form id="dc-form" class="dc-form" novalidate>
-          <div class="card-h"><strong id="dc-form-h">New diet</strong><button class="ghost" type="button" id="dc-copy">Start from the last diet</button></div>
+          <div class="card-h"><strong id="dc-form-h">New diet</strong><span class="dc-tools"><select class="select" id="dc-from" aria-label="Copy a diet from another client"></select><button class="ghost" type="button" id="dc-copy">Start from the last diet</button></span></div>
           <div class="field" style="max-width:220px"><label class="lbl" for="dc-start">Starts on</label><input class="input" id="dc-start" type="date"></div>
           <div class="field"><label class="lbl" for="dc-am">Morning message (shown above breakfast)</label><textarea class="ta" id="dc-am" maxlength="400" rows="2" placeholder="e.g. Start with warm jeera water and a 20-minute walk."></textarea></div>
           <div class="dc-meals">
@@ -438,33 +449,40 @@
 
 <div class="modal-root" id="pw-modal" hidden>
   <div class="modal-bg" data-close-modal="1"></div>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pwm-h">
-    <h2 id="pwm-h">Your login</h2>
-    <form id="pwm-form" novalidate>
-      <div class="field"><label class="lbl" for="pwm-user">Username</label><input class="input" id="pwm-user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30"></div>
-      <div class="divider"></div>
-      <span class="small muted">To change your password, fill in all three boxes. Otherwise leave them empty.</span>
-      <div class="field"><label class="lbl" for="pwm-old">Current password</label><input class="input" id="pwm-old" type="password" autocomplete="current-password" maxlength="72"></div>
-      <div class="field"><label class="lbl" for="pwm-new">New password</label><input class="input" id="pwm-new" type="password" autocomplete="new-password" maxlength="72"></div>
-      <div class="field"><label class="lbl" for="pwm-new2">New password again</label><input class="input" id="pwm-new2" type="password" autocomplete="new-password" maxlength="72"></div>
-      <div class="err" id="pwm-err" role="alert" hidden></div>
-      <div class="row"><button class="btn" type="submit" id="pwm-go">Save</button><button class="ghost" style="height:44px" type="button" data-close-modal="1">Cancel</button></div>
-    </form>
+  <div class="modal me" role="dialog" aria-modal="true" aria-labelledby="pwm-h">
+    <div class="me-head"><span class="avatar" id="me-av" aria-hidden="true"></span><div class="me-id"><h2 id="pwm-h">Account</h2><span class="small muted" id="me-sub"></span></div><button class="x" type="button" data-close-modal="1" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="me-list">
+      <div class="me-row"><div><strong>Notifications</strong><span class="small muted" id="me-nt-sub"></span></div><button class="ghost" type="button" id="me-nt-on" hidden>Turn on</button></div>
+      <div class="me-row" id="snd-row"><div><strong>Sounds</strong><span class="small muted">A short sound when you earn stars</span></div><button class="ghost" id="snd" type="button" aria-pressed="true">Sound on</button></div>
+      <div class="me-row"><div><strong>Install the app</strong><span class="small muted" id="me-inst-sub">Put Stayingfit on your home screen</span></div><button class="ghost" type="button" id="me-inst-btn" aria-expanded="false" aria-controls="me-inst">How</button></div>
+      <div class="notice" id="me-inst" hidden></div>
+      <div class="me-row"><div><strong>Username and password</strong><span class="small muted" id="me-user"></span></div><button class="ghost" type="button" id="me-login-btn" aria-expanded="false" aria-controls="pwm-form">Change</button></div>
+      <form id="pwm-form" novalidate hidden>
+        <div class="field"><label class="lbl" for="pwm-user">Username</label><input class="input" id="pwm-user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30"></div>
+        <span class="small muted">To change your password, fill in all three boxes. Otherwise leave them empty.</span>
+        <div class="field"><label class="lbl" for="pwm-old">Current password</label><input class="input" id="pwm-old" type="password" autocomplete="current-password" maxlength="72"></div>
+        <div class="field"><label class="lbl" for="pwm-new">New password</label><input class="input" id="pwm-new" type="password" autocomplete="new-password" maxlength="72"></div>
+        <div class="field"><label class="lbl" for="pwm-new2">New password again</label><input class="input" id="pwm-new2" type="password" autocomplete="new-password" maxlength="72"></div>
+        <div class="err" id="pwm-err" role="alert" hidden></div>
+        <div class="row"><button class="btn" type="submit" id="pwm-go">Save</button><button class="ghost" style="height:46px" type="button" id="me-login-cancel">Cancel</button></div>
+      </form>
+    </div>
+    <div class="me-foot"><a class="small" href="privacy.html" target="_blank" rel="noopener">Terms and privacy</a><button class="ghost danger" type="button" data-signout>Sign out</button></div>
   </div>
 </div>
 
 <nav class="mbar sbar" id="sbar" aria-label="Sections" hidden></nav>
-<nav class="mbar" id="mbar" aria-label="Jump to" hidden>
-  <button type="button" data-jump="c-h1" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M3 11l9-7 9 7v9H3z"/></svg>Today</button>
-  <button type="button" data-jump="wt-h"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M4 20h16M6 20l2-12h8l2 12M12 8V4"/></svg>Weight</button>
-  <button type="button" data-jump="wa-h"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M12 3.5c2.8 3.6 5.5 6.6 5.5 9.9a5.5 5.5 0 0 1-11 0c0-3.3 2.7-6.3 5.5-9.9z"/></svg>Water</button>
-  <button type="button" data-jump="cal-h"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></svg>Food</button>
-  <button type="button" data-jump="ms-h"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M4 5h16v11H9l-5 4z"/></svg>Chat</button>
+<nav class="mbar" id="mbar" aria-label="Sections" hidden>
+  <button type="button" data-ctab="home" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M3 11l9-7 9 7v9h-6v-6H9v6H3z"/></svg>Home</button>
+  <button type="button" data-ctab="diet"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M5 19C5 10 10 5 20 4c0 10-5 15-14 15zM5 19l7-7"/></svg>Diet</button>
+  <button type="button" data-ctab="track"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 8v8M8 12h8"/></svg>Track</button>
+  <button type="button" data-ctab="chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z"/></svg>Chat<span class="cnt" data-unread hidden></span></button>
+  <button type="button" data-ctab="me"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 21h8"/></svg>Progress</button>
 </nav>
 <div id="fx"></div>
 
 <script src="config.js"></script>
 <script src="supabase-2.117.2.js"></script>
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

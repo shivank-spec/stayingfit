@@ -1,6 +1,8 @@
 /* Stayingfit app (vanilla JS, no build step) */
 (function () {
 'use strict';
+/* a phone that still holds last week's copy of the page gets the current one before anything runs */
+if (!document.getElementById('ctabs')) { let again = false; try { again = !sessionStorage.getItem('sf-fresh'); sessionStorage.setItem('sf-fresh', '1'); } catch (e) {} if (again) location.reload(); return; }
 
 /* ---------- helpers ---------- */
 const CFG = window.STAYINGFIT_CONFIG || {};
@@ -24,7 +26,7 @@ const wChange = (ws) => { if (!ws || ws.length < 2) return null; const a = ws[ws
 const wChangeTxt = (ch) => (ch.df === 0 ? 'same as ' + ch.when : (ch.df < 0 ? 'down ' : 'up ') + Math.abs(ch.df).toFixed(1) + ' kg from ' + ch.when + ' (' + ch.prev.toFixed(1) + ' kg)');
 const wChangeHtml = (ch) => (ch ? '<span class="chg' + (ch.df < 0 ? ' down' : ch.df > 0 ? ' up' : '') + '">' + (ch.df === 0 ? 'No change' : (ch.df < 0 ? '↓ ' : '↑ ') + Math.abs(ch.df).toFixed(1) + ' kg') + '</span> <span class="muted">' + (ch.when === 'yesterday' ? 'yesterday ' : 'on ' + ch.when + ' ') + ch.prev.toFixed(1) + '</span>' : '');
 const clock = () => new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase();
-const initials = (n) => { const p = String(n || '?').trim().split(/\s+/); return ((p[0] || '?')[0] + (p[1] ? p[1][0] : '')).toUpperCase(); };
+const initials = (n) => { const p = String(n || '').replace(/[^\p{L}\p{N}\s]/gu, ' ').trim().split(/\s+/).filter(Boolean); return p.length ? (p[0][0] + (p[1] ? p[1][0] : '')).toUpperCase() : '?'; };
 const short = (n) => { const p = String(n || '').trim().split(/\s+/); return p.length > 1 ? p[0] + ' ' + p[1][0] + '.' : p[0]; };
 const first = (n) => String(n || '').trim().split(/\s+/)[0];
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -220,7 +222,7 @@ function freshState() {
     threads: [], msgs: {}, openThread: null, dmId: null, kThread: null, pcs: [], zoom: null, pushOn: false, pushErr: '',
     clients: [], profiles: {}, allWeights: {}, days: {}, diets: {}, liq: {}, ticks: {}, allTests: {}, ibox: 'mine', kOpen: false, dietFor: null,
     exType: 'Walk', q: '', pick: null, seen: {}, diet: null, liquids: [], ticked: new Set(), asstId: null, lb: 'loss', tier: 'All', cq: '', sortK: 'name', sortDir: 1, sel: null, drawer: null, drawerMode: null,
-    counted: {}, lvlSeen: null, chain: Promise.resolve(), lastGlass: -1, tab: null, cred: null
+    counted: {}, lvlSeen: null, chain: Promise.resolve(), lastGlass: -1, tab: null, cred: null, ctab: 'home', seenLoaded: false, notes: {}, noteDraft: null
   };
 }
 Object.assign(S, { sb: null, session: null, rt: null }, freshState());
@@ -272,7 +274,7 @@ function signedOut() {
   if (S.rt && S.sb) { try { S.sb.removeChannel(S.rt); } catch (e) {} }
   S.rt = null; closeDrawer(); closeModal(); closeZoom(); forgetPush();
   Object.assign(S, freshState()); S.session = null;
-  document.body.classList.remove('readonly');
+  document.body.classList.remove('readonly'); delete document.body.dataset.ctab; delete document.body.dataset.stab; setBadge(0);
   ['#li-pw', '#np-user', '#np-old', '#np-new', '#np-new2'].forEach((s) => { $(s).value = ''; });
   $('#view-client').hidden = true; $('#view-staff').hidden = true;
   showLogin();
@@ -294,10 +296,10 @@ async function route() {
       await loadClient();
       if (!S.me) { show('gate-noprofile'); return; }
       if (!S.me.consent_at) { show('gate-consent'); return; }
-      $('#view-staff').hidden = true; $('#view-client').hidden = false; show('app'); renderClient();
+      $('#view-staff').hidden = true; $('#view-client').hidden = false; show('app'); delete document.body.dataset.stab; setCTab(S.ctab); renderClient();
       if (S.justJoined) { S.justJoined = false; celebrate({ name: 'Welcome, ' + first(S.me.name), desc: 'You’re all set', fill: 'var(--forest)', g: G.leaf }, 'Start with your morning weigh-in to earn your first star.', 'Stayingfit'); }
     } else {
-      document.body.classList.toggle('readonly', !isCoach());
+      document.body.classList.toggle('readonly', !isCoach()); delete document.body.dataset.ctab;
       await loadStaff();
       $('#view-client').hidden = true; $('#view-staff').hidden = false; show('app');
       if (!S.tab) S.tab = lsGet('sf-tab-' + S.role) || 'today';
@@ -317,7 +319,7 @@ async function route() {
 const UNAME = /^[a-z0-9][a-z0-9._-]{2,29}$/;
 const UNAME_HELP = 'Usernames are 3 to 30 characters: small letters, numbers, dots, dashes or underscores.';
 function showLogin() { $('#li-err').hidden = true; show('gate-login'); }
-function setWho() { const p = S.profile; if (p) $('#nav-who').textContent = p.display_name + ' · ' + ROLE_NAME[p.role] + ' · @' + p.username; }
+function setWho() { const p = S.profile; if (!p) return; $('#nav-who').textContent = p.display_name + ' · ' + ROLE_NAME[p.role] + ' · @' + p.username; $('#nav-av').textContent = initials(p.display_name); $('#nav-me-t').textContent = first(p.display_name); }
 $('#li-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const err = $('#li-err'), fail = (m) => { err.textContent = m; err.hidden = false; };
@@ -397,9 +399,38 @@ $('#consent-go').addEventListener('click', async () => {
   await route();
 });
 
-/* Account dialog: change username and/or password any time */
-function openModal() { $('#pw-modal').hidden = false; $('#pwm-err').hidden = true; $('#pwm-user').value = S.profile ? S.profile.username : ''; ['#pwm-old', '#pwm-new', '#pwm-new2'].forEach((x) => { $(x).value = ''; }); }
+/* Account sheet: notifications, sounds, putting the app on the home screen, and the login */
+function showLoginForm(on) {
+  $('#pwm-form').hidden = !on; $('#me-login-btn').hidden = on; $('#me-login-btn').setAttribute('aria-expanded', String(on)); $('#pwm-err').hidden = true;
+  if (on) { $('#pwm-user').value = S.profile.username; ['#pwm-old', '#pwm-new', '#pwm-new2'].forEach((x) => { $(x).value = ''; }); $('#pwm-user').focus(); }
+}
+function showInstall(on) { $('#me-inst').hidden = !on; $('#me-inst-btn').setAttribute('aria-expanded', String(on)); $('#me-inst-btn').textContent = on ? 'Hide' : 'How'; if (on) $('#me-inst').innerHTML = installHtml(); }
+function openModal() { if (!S.profile) return; $('#pw-modal').hidden = false; showLoginForm(false); showInstall(false); renderMe(); }
 function closeModal() { const m = $('#pw-modal'); if (m) m.hidden = true; }
+function renderMe() {
+  const p = S.profile; if (!p || $('#pw-modal').hidden) return;
+  $('#me-av').textContent = initials(p.display_name); $('#pwm-h').textContent = p.display_name;
+  $('#me-sub').textContent = ROLE_NAME[p.role] + ' · @' + p.username; $('#me-user').textContent = '@' + p.username;
+  const perm = pushSupported() ? Notification.permission : '';
+  let sub = 'Off on this device', btn = true;
+  if (IOS && !standalone()) { sub = 'On an iPhone, put the app on your home screen first'; btn = false; }
+  else if (!pushSupported()) { sub = 'This browser can’t show notifications'; btn = false; }
+  else if (perm === 'denied') { sub = 'Blocked in this device’s settings'; btn = false; }
+  else if (perm === 'granted' && S.pushOn) { sub = 'On for this device'; btn = false; }
+  const nb = $('#me-nt-on'); nb.hidden = !btn; nb.disabled = false; nb.textContent = 'Turn on';
+  $('#me-nt-sub').textContent = btn && S.pushErr ? S.pushErr : sub;
+  const inst = standalone();
+  $('#me-inst-sub').textContent = inst ? 'Installed on this device' : 'Put Stayingfit on your home screen';
+  $('#me-inst-btn').hidden = inst; if (inst) $('#me-inst').hidden = true;
+}
+/* how to put the app on the home screen, for the device in hand */
+function installHtml() {
+  const now = installEvt ? '<button class="btn" type="button" id="me-inst-go" style="align-self:flex-start">Install now</button>' : '';
+  if (IOS) return '<strong>On an iPhone or iPad</strong><ol><li>Open this page in <strong>Safari</strong>.</li><li>Tap the <strong>Share</strong> button (the square with an arrow pointing up).</li><li>Tap <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li><li>Open <strong>Stayingfit</strong> from the new icon and sign in.</li></ol>';
+  if (SAMSUNG) return '<strong>On a Samsung phone, install it from Chrome</strong><span class="small">Installing from Samsung Internet can bring up an “Unsafe app blocked” warning. Chrome installs it without one.</span><ol><li><a href="' + esc(chromeLink()) + '">Open Stayingfit in Chrome</a> and sign in.</li><li>Tap the three dots at the top right.</li><li>Tap <strong>Add to Home screen</strong>, then <strong>Install</strong>.</li></ol>';
+  if (ANDROID) return '<strong>On an Android phone</strong>' + now + '<ol><li>Open this page in <strong>Chrome</strong>.</li><li>Tap the three dots at the top right.</li><li>Tap <strong>Add to Home screen</strong>, then <strong>Install</strong>.</li></ol>';
+  return '<strong>On a computer</strong>' + now + '<span class="small">In Chrome or Edge, click the install icon at the right end of the address bar. To install on a phone, open Stayingfit on the phone and come back to this screen.</span>';
+}
 $('#pw-open').addEventListener('click', openModal);
 $('#pwm-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -437,7 +468,7 @@ async function loadClient() {
   await Promise.all([loadPhotoUrls((S.day.photos || []).map((x) => x.path).concat(S.pcs.map((x) => x.path))), loadReportUrls(S.tests)]);
   if (!S.dmId) { const r = fixErr(await S.sb.rpc('ensure_chat', { p_kind: 'dm' })); S.dmId = r.data; }
   if (!S.asstId) { const r = fixErr(await S.sb.rpc('ensure_chat', { p_kind: 'asst' })); S.asstId = r.data; }
-  await loadThreads();
+  await loadThreads(); loadSeen();
   if (!S.openThread || !S.threads.find((x) => x.id === S.openThread)) S.openThread = S.dmId;
   await loadMsgs(S.openThread);
 }
@@ -455,7 +486,39 @@ function queue(task) {
   S.chain = S.chain.then(task).catch((e) => { toast(friendly(e)); return refreshClient(); });
   return S.chain;
 }
-async function refreshClient() { try { await loadClient(); renderClient(); } catch (e) { toast(friendly(e)); } }
+async function refreshClient() { try { await loadClient(); renderClient(); return true; } catch (e) { toast(friendly(e)); return false; } }
+/* which chats hold something new: remembered on this device, so the badge survives closing the app */
+const seenKey = () => 'sf-seen-' + uidNow();
+function saveSeen() { lsSet(seenKey(), JSON.stringify(S.seen)); }
+function loadSeen() {
+  if (S.seenLoaded) return; S.seenLoaded = true;
+  let st = null; try { st = JSON.parse(lsGet(seenKey()) || 'null'); } catch (e) {}
+  if (st && typeof st === 'object') { S.seen = st; return; }
+  const old = Date.now() - 2 * 864e5; S.threads.forEach((t) => { if (t.last_at && +new Date(t.last_at) < old) S.seen[t.id] = t.last_at; }); saveSeen();
+}
+const isUnread = (t) => !!t.last_text && t.last_sender !== uidNow() && (t.last_from_staff || !!t.last_sender) && S.seen[t.id] !== t.last_at;
+function setBadge(n) { try { if (navigator.setAppBadge) { (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {}); } } catch (e) {} }
+function paintUnread() {
+  const n = S.role === 'client' ? S.threads.filter(isUnread).length : 0;
+  document.querySelectorAll('[data-unread]').forEach((el) => { el.hidden = !n; el.textContent = n; });
+  setBadge(S.role === 'client' ? n : isStaff() ? waitingThreads().length : 0);
+}
+/* the client's five screens */
+const CTABS = ['home', 'diet', 'track', 'chat', 'me'];
+function setCTab(id, focusId) {
+  if (CTABS.indexOf(id) < 0) id = 'home';
+  S.ctab = id; document.body.dataset.ctab = id;
+  document.querySelectorAll('#mbar button').forEach((b) => b.classList.toggle('on', b.dataset.ctab === id));
+  document.querySelectorAll('#ctabs .stab').forEach((b) => { const on = b.dataset.ctab === id; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
+  if (S.me && id === 'track') renderChart(S.me.goal_kg ? num(S.me.goal_kg) : null, S.weights, $('#chart-box'), num(S.me.start_kg));
+  if (S.me && id === 'chat') { renderClientMsgs(); const th = $('#c-thread'); th.scrollTop = th.scrollHeight; }
+  const el = focusId && document.getElementById(focusId), card = el && (el.closest('.card') || el);
+  window.scrollTo({ top: card ? Math.max(card.getBoundingClientRect().top + window.scrollY - 76, 0) : 0 });
+}
+async function openChat(tid) {
+  if (tid && S.threads.find((x) => x.id === tid)) { S.openThread = tid; try { await loadMsgs(tid); } catch (e) { toast(friendly(e)); } }
+  setCTab('chat');
+}
 function reward(r, msg, opts) {
   opts = opts || {};
   const gained = (r && r.gained) || 0, badges = (r && r.badges) || [];
@@ -486,18 +549,18 @@ function renderClient() {
 
   // hero
   const hr = +new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false });
-  $('#c-date').textContent = fmtDay(TODAY) + ' · Day ' + (diffDays(c.plan_start, TODAY) + 1) + ' of your plan · ' + c.tier + ' check-ins';
+  $('#c-date').innerHTML = fmtDay(TODAY) + ' · Day ' + (diffDays(c.plan_start, TODAY) + 1) + ' of your plan<span class="w-lg"> · ' + esc(c.tier) + ' check-ins</span>';
   $('#c-h1').textContent = (hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening') + ', ' + first(c.name) + '.';
   $('#c-line').textContent = (lost > 0.05 ? lost.toFixed(1) + ' kg down' + (goal ? (toGo > 0 ? ', ' + toGo.toFixed(1) + ' to go. ' : '. Goal reached! ') : '. ') : '')
-    + (!logged ? (streak ? 'Log your morning weight to keep the ' + streak + '-day streak going.' : 'Log your morning weight to start a streak.') : doneN === 3 ? 'Every challenge done today. A clean day.' : 'Weigh-in logged. ' + (3 - doneN) + ' of today’s challenges still open.');
+    + (!logged ? (streak ? 'Log your morning weight to keep the ' + streak + '-day streak going.' : 'Log your morning weight to start a streak.') : ((left) => (left ? 'Weigh-in logged. ' + left + (left === 1 ? ' thing' : ' things') + ' left on today’s list.' : 'Everything on today’s list is done. A clean day.'))(todayRows().filter((r) => r[4] < 1).length));
   const gp = goal && start > goal ? Math.max(0, Math.min(lost / (start - goal), 1)) : 0, gr = $('#goal-ring');
   gr.hidden = !goal; gr.setAttribute('aria-label', Math.round(gp * 100) + '% of the way to the goal weight');
   if (!gr.firstChild) gr.innerHTML = '<svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="50" class="gr-t"/><circle cx="60" cy="60" r="50" class="gr-v" style="stroke-dasharray:0 314.2"/></svg><div class="gr-in"><strong class="num">0%</strong><span>of goal</span></div>';
   requestAnimationFrame(() => { gr.querySelector('.gr-v').style.strokeDasharray = (gp * 314.2).toFixed(1) + ' 314.2'; });
   gr.querySelector('strong').textContent = Math.round(gp * 100) + '%';
   setNum('#v-stars', c.stars, c.id + 's'); setNum('#v-streak', streak, c.id + 'k');
-  $('#v-lost').textContent = (lost >= 0 ? '−' : '+') + Math.abs(lost).toFixed(1);
-  $('#v-lost-sub').textContent = 'kg · ' + Math.abs(lost / start * 100).toFixed(1) + '% of start';
+  $('#v-lost').textContent = (Math.abs(lost) < 0.05 ? '' : lost > 0 ? '−' : '+') + Math.abs(lost).toFixed(1);
+  $('#v-lost-sub').innerHTML = '<span class="w-lg">kg · ' + Math.abs(lost / start * 100).toFixed(1) + '% of start</span><span class="w-sm">kg so far</span>';
   $('#v-ch').textContent = doneN + '/3';
   const per = 50, lvl = Math.floor(c.stars / per) + 1, lvName = LEVELS[Math.min(lvl - 1, LEVELS.length - 1)];
   $('#lvl-n').textContent = 'Level ' + lvl; $('#lvl-name').textContent = lvName;
@@ -585,6 +648,31 @@ function renderClient() {
   renderLeaderboard();
   renderClientHealth();
   renderClientMsgs();
+  renderToday();
+}
+/* Home: what is done today and what is left. Each row opens the place where that thing is logged. */
+const tileHtml = (ic, col) => '<span class="ictile t-' + col + '" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="ic" style="stroke-width:2" d="' + ICONS[ic] + '"/></svg></span>';
+function todayRows() {
+  const c = S.me, d = S.day || emptyDay(), meals = d.meals || [], water = d.water || 0, exMin = (d.exercise || []).reduce((a, e) => a + (+e.min || 0), 0), kcal = meals.reduce((a, m) => a + (+m.k || 0), 0);
+  const logged = c.last_log_date === TODAY, chg = wChange(S.weights), L = S.liquids || [], ln = L.filter((x) => S.ticked.has(x.id)).length;
+  const rows = [['scale', 'forest', 'Morning weigh-in', logged ? curOf(c, S.weights).toFixed(1) + ' kg' + (chg ? ' · ' + wChangeTxt(chg) : '') : 'Log today’s weight · +1 star', logged ? 1 : 0, 'track', 'wt-h', false]];
+  if (L.length) rows.push(['drop', 'slate', 'Daily liquids', ln + ' of ' + L.length + ' taken', ln / L.length, 'diet', 'lq-h', true]);
+  rows.push(['drop', 'water', 'Water', water + ' of 10 glasses', Math.min(water / 10, 1), 'track', 'wa-h', true]);
+  rows.push(['plate', 'ember', 'Meals', Math.min(meals.length, 3) + ' of 3 logged' + (kcal ? ' · ' + kcal.toLocaleString('en-IN') + ' kcal' : ''), Math.min(meals.length / 3, 1), 'track', 'cal-h', true]);
+  rows.push(['run', 'gold', 'Movement', exMin + ' of 30 minutes', Math.min(exMin / 30, 1), 'track', 'ex-h', true]);
+  return rows;
+}
+function renderToday() {
+  const box = $('#td'); if (!S.me || !box) return;
+  const rows = todayRows(), doneN = rows.filter((r) => r[4] >= 1).length, all = doneN === rows.length;
+  $('#td-count').textContent = all ? 'All done' : doneN + ' of ' + rows.length + ' done'; $('#td-count').className = 'tag' + (all ? ' gold' : '');
+  const who = (t) => (t.kind === 'family' ? t.title : t.id === S.asstId ? 'Assistant' : COACH);
+  box.innerHTML = S.threads.filter(isUnread).slice(0, 3).map((t) => '<button class="td-row new" type="button" data-ctab="chat" data-thread="' + esc(t.id) + '" aria-label="' + esc('New message from ' + who(t) + ': ' + t.last_text) + '">' + tileHtml('chat', 'ember') + '<span class="td-t"><strong>' + esc(who(t)) + '<span class="td-new">New</span></strong><span class="small muted td-pv">' + esc(t.last_text) + '</span></span><span class="td-s"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" style="stroke-width:2.2" d="M9 6l6 6-6 6"/></svg></span></button>').join('')
+    + rows.map((r) => { const ok = r[4] >= 1;
+      return '<button class="td-row' + (ok ? ' done' : '') + '" type="button" data-ctab="' + r[5] + '" data-focus="' + r[6] + '" aria-label="' + esc(r[2] + ': ' + r[3] + (ok ? ', done' : '')) + '">' + tileHtml(r[0], r[1]) + '<span class="td-t"><strong>' + r[2] + '</strong><span class="small muted">' + esc(r[3]) + '</span></span><span class="td-s">'
+        + (ok ? '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" style="stroke-width:3" d="M4 12.5l5 5L20 6.5"/></svg>'
+          : r[7] ? '<svg class="td-ring" viewBox="0 0 36 36" aria-hidden="true"><circle class="tr-t" cx="18" cy="18" r="15"/><circle class="tr-v" cx="18" cy="18" r="15" style="stroke-dasharray:' + (r[4] * 94.25).toFixed(1) + ' 94.25"/></svg>'
+          : '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" style="stroke-width:2.2" d="M9 6l6 6-6 6"/></svg>') + '</span></button>'; }).join('');
 }
 function paintGlasses(water) {
   [...$('#glasses').children].forEach((b, i) => {
@@ -724,13 +812,14 @@ function renderClientMsgs() {
   if (!S.me) return;
   const fam = S.threads.filter((t) => t.kind === 'family');
   const opts = [{ id: S.dmId, label: COACH }, { id: S.asstId, label: 'Assistant' }].concat(fam.map((t) => ({ id: t.id, label: t.title + ' · family' })));
-  const fresh = (id) => { const t = S.threads.find((x) => x.id === id); return t && t.last_from_staff && t.last_text && id !== S.openThread && S.seen[id] !== t.last_at; };
-  $('#c-threads').innerHTML = opts.map((o) => '<button class="chip" type="button" data-thread="' + esc(o.id) + '" aria-pressed="' + (o.id === S.openThread) + '">' + esc(o.label) + (fresh(o.id) ? '<span class="dot-new" style="margin-left:8px"></span>' : '') + '</button>').join('');
   const th = S.threads.find((t) => t.id === S.openThread);
-  if (th) S.seen[th.id] = th.last_at;
+  if (th && S.ctab === 'chat' && document.visibilityState === 'visible' && S.seen[th.id] !== th.last_at) { S.seen[th.id] = th.last_at; saveSeen(); }
+  const fresh = (id) => { const t = S.threads.find((x) => x.id === id); return !!t && id !== S.openThread && isUnread(t); };
+  $('#c-threads').innerHTML = opts.map((o) => '<button class="chip" type="button" data-thread="' + esc(o.id) + '" aria-pressed="' + (o.id === S.openThread) + '">' + esc(o.label) + (fresh(o.id) ? '<span class="dot-new" style="margin-left:8px"></span>' : '') + '</button>').join('');
   const asst = S.openThread === S.asstId;
   $('#ms-h').textContent = th && th.kind === 'family' ? th.title : asst ? 'Chat with the assistant' : 'Chat with ' + COACH;
   paintThread('#c-thread', S.openThread, 'No messages yet. Say hello to ' + (asst ? 'the assistant' : COACH) + '.');
+  paintUnread();
 }
 $('#hs-agree').addEventListener('click', () => queue(async () => { fixErr(await S.sb.rpc('give_health_consent')); await loadClient(); renderClient(); toast('Blood test tracking is on'); }));
 $('#bt-toggle').addEventListener('click', (e) => { const f = $('#bt-form'); f.hidden = !f.hidden; e.currentTarget.setAttribute('aria-expanded', String(!f.hidden)); e.currentTarget.textContent = f.hidden ? 'Add a result' : 'Cancel'; if (!f.hidden) { $('#bt-d').value = TODAY; $('#bt-d').max = TODAY; $('#bt-a').focus(); } });
@@ -789,6 +878,8 @@ async function loadStaff() {
   (lq.data || []).forEach((x) => { (S.liq[x.client_id] = S.liq[x.client_id] || []).push(x); });
   (tk.data || []).forEach((x) => { (S.ticks[x.client_id] = S.ticks[x.client_id] || {})[x.liquid_id] = x.at; });
   await loadComments();
+  const nt = await S.sb.from('client_notes').select('client_id,body,updated_at,updated_by');
+  if (!nt.error) { S.notes = {}; (nt.data || []).forEach((x) => { S.notes[x.client_id] = x; }); }
   await loadThreads();
   if (!S.threads.some((x) => x.kind === 'team')) { const r = await S.sb.rpc('ensure_team'); if (!r.error) await loadThreads(); }
   const mine = inboxThreads();
@@ -798,7 +889,7 @@ async function loadStaff() {
 let staffBusy = false;
 async function refreshStaff() {
   if (staffBusy) return; staffBusy = true;
-  try { await loadStaff(); renderStaff(); if (S.drawer) renderDrawer(); } catch (e) { toast(friendly(e)); } finally { staffBusy = false; }
+  try { await loadStaff(); renderStaff(); if (S.drawer) renderDrawer(); return true; } catch (e) { toast(friendly(e)); return false; } finally { staffBusy = false; }
 }
 const wsOf = (c) => S.allWeights[c.id] || [];
 const profOf = (c) => S.profiles[c.user_id] || {};
@@ -834,9 +925,10 @@ function staffTabs() {
 }
 function setTab(id) {
   if (!staffTabs().some((t) => t[0] === id)) id = 'today';
-  S.tab = id; lsSet('sf-tab-' + S.role, id);
+  const moved = S.tab !== id; S.tab = id; lsSet('sf-tab-' + S.role, id); document.body.dataset.stab = id;
   ['today', 'clients', 'messages', 'diet', 'plans'].forEach((k) => { $('#p-' + k).hidden = k !== id; });
-  document.querySelectorAll('.stab').forEach((b) => { const on = b.dataset.tab === id; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
+  if (moved) window.scrollTo({ top: 0 });
+  document.querySelectorAll('#stabs .stab').forEach((b) => { const on = b.dataset.tab === id; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
   document.querySelectorAll('#sbar button').forEach((b) => b.classList.toggle('on', b.dataset.tab === id));
   if (id === 'messages') { const th = $('#k-thread'); th.scrollTop = th.scrollHeight; }
 }
@@ -859,7 +951,7 @@ function renderStaff() {
   renderTasks(tasks); renderCheckins(); renderQuick(); renderPhotos(); renderWeek(); renderActivity(); renderW7();
   renderClientsTable(); renderInbox(); renderGroupPeople();
   if (isCoach()) renderDiet();
-  renderPlans();
+  renderPlans(); paintUnread();
 }
 function renderQuick() {
   $('#k-quick').innerHTML = '<button class="btn" type="button" data-first-client="1">Add client</button>'
@@ -924,6 +1016,9 @@ function renderZoom() {
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = () => (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
 const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const ANDROID = /Android/i.test(navigator.userAgent), SAMSUNG = /SamsungBrowser/i.test(navigator.userAgent);
+/* Samsung Internet's installer sets off a Play Protect warning, so Samsung phones are sent to Chrome to install */
+const chromeLink = () => 'intent://' + location.host + location.pathname + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.origin + location.pathname) + ';end';
 let installEvt = null, pendingLink = /^#(chat=[0-9a-f-]{36}|photos)$/.test(location.hash) ? location.hash : null;
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -931,7 +1026,7 @@ if ('serviceWorker' in navigator) {
 }
 window.addEventListener('hashchange', () => { if (/^#(chat=[0-9a-f-]{36}|photos)$/.test(location.hash)) openLink(location.hash); });
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; renderNotify(); });
-window.addEventListener('appinstalled', () => { installEvt = null; renderNotify(); });
+window.addEventListener('appinstalled', () => { installEvt = null; renderNotify(); renderMe(); });
 const keyBytes = (k) => Uint8Array.from(atob(k.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
 const bytesKey = (b) => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const swReady = () => Promise.race([navigator.serviceWorker.ready, new Promise((_, no) => setTimeout(() => no(new Error('The app isn’t ready for notifications yet. Close it and open it again.')), 8000))]);
@@ -955,8 +1050,8 @@ async function dropPush() {
   try { await sub.unsubscribe(); } catch (e) {}
 }
 function forgetPush() { if (!pushSupported()) return; navigator.serviceWorker.getRegistration().then((r) => r && r.pushManager.getSubscription()).then((sub) => sub && sub.unsubscribe()).catch(() => {}); }
-async function enablePush() {
-  const b = $('#nt-on'); if (b) { b.disabled = true; b.innerHTML = '<span class="spin"></span> Turning on…'; }
+async function enablePush(btn) {
+  const b = btn || $('#nt-on'); if (b) { b.disabled = true; b.innerHTML = '<span class="spin"></span> Turning on…'; }
   S.pushErr = '';
   try {
     const perm = await Notification.requestPermission();
@@ -965,7 +1060,7 @@ async function enablePush() {
       else S.pushErr = 'Notifications aren’t ready yet. Try again in a minute.';
     }
   } catch (e) { S.pushErr = 'Couldn’t turn notifications on. ' + ((e && e.message) || ''); }
-  renderNotify();
+  renderNotify(); renderMe();
 }
 function renderNotify() {
   const box = $('#nt'); if (!box) return;
@@ -976,7 +1071,7 @@ function renderNotify() {
   let h = '';
   if (live && !later) {
     if (IOS && !standalone()) h = card('Get notifications on your iPhone', 'Add Stayingfit to your home screen to get a notification when ' + esc(who) + '.', '<ol class="nt-steps"><li>Open this page in <strong>Safari</strong>.</li><li>Tap the <strong>Share</strong> button (the square with an arrow pointing up).</li><li>Scroll down and tap <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li><li>Open <strong>Stayingfit</strong> from the new icon, sign in, and tap <strong>Turn on notifications</strong>.</li></ol>', '');
-    else if (perm === 'default' || (perm === 'granted' && S.pushErr)) h = card('Turn on notifications', 'Get a notification on this device when ' + esc(who) + ', even when the app is closed.', S.pushErr ? '<span class="small" style="color:var(--danger)">' + esc(S.pushErr) + '</span>' : '', '<button class="btn" type="button" id="nt-on">Turn on notifications</button>' + (installEvt && !standalone() && !/SamsungBrowser/.test(navigator.userAgent) ? '<button class="ghost" style="height:44px" type="button" id="nt-install">Add to home screen</button>' : ''));
+    else if (perm === 'default' || (perm === 'granted' && S.pushErr)) h = card('Turn on notifications', 'Get a notification on this device when ' + esc(who) + ', even when the app is closed.', (S.pushErr ? '<span class="small" style="color:var(--danger)">' + esc(S.pushErr) + '</span>' : '') + (SAMSUNG && !standalone() ? '<span class="small muted">On a Samsung phone, install the app from Chrome to avoid an “Unsafe app” warning. <a href="' + esc(chromeLink()) + '">Open in Chrome</a></span>' : ''), '<button class="btn" type="button" id="nt-on">Turn on notifications</button>' + (installEvt && !standalone() && !SAMSUNG ? '<button class="ghost" style="height:44px" type="button" id="nt-install">Add to home screen</button>' : ''));
     else if (perm === 'denied') h = card('Notifications are blocked on this device', 'To get a notification when ' + esc(who) + ', allow notifications for Stayingfit, then close the app and open it again.', '<span class="small muted">' + (IOS ? 'iPhone: Settings, then Notifications, then Stayingfit, then turn on Allow Notifications.' : 'Android: press and hold the Stayingfit icon, tap App info, then Notifications, and turn them on. In Chrome: tap the icon to the left of the address bar, then Permissions.') + '</span>', '');
   }
   box.hidden = !h; box.innerHTML = h;
@@ -991,9 +1086,9 @@ async function openLink(h) {
   try {
     if (m) {
       await loadThreads(); const th = S.threads.find((x) => x.id === m[1]); if (!th) return;
-      if (S.role === 'client') { S.openThread = th.id; await loadMsgs(th.id); renderClientMsgs(); const el = $('#ms-h'); if (el) el.scrollIntoView({ block: 'start' }); }
+      if (S.role === 'client') { await openChat(th.id); }
       else { closeDrawer(); S.ibox = isCoach() && th.kind === 'asst' ? 'asst' : 'mine'; S.kThread = th.id; S.kOpen = true; setTab('messages'); await loadMsgs(th.id); renderInbox(); window.scrollTo({ top: 0 }); }
-    } else if (h === '#photos' && S.role === 'client') { await refreshClient(); const el = $('#pcs'); if (el && !el.hidden) el.scrollIntoView({ block: 'center' }); }
+    } else if (h === '#photos' && S.role === 'client') { await refreshClient(); setCTab('track', 'cal-h'); const el = $('#pcs'); if (el && !el.hidden) el.scrollIntoView({ block: 'center' }); }
   } catch (e) { /* opening the app is enough */ }
 }
 function renderWeek() {
@@ -1158,7 +1253,7 @@ async function renderDrawer() {
   const kcal = meals.reduce((a, m) => a + (+m.k || 0), 0), ago = lastLogAgo(c), bs = c.badges || {}, dt = curDiet(c), dn = dt ? dietDay(dt) : 0, pr = profOf(c), ts = S.allTests[c.id] || [];
   await Promise.all([loadPhotoUrls((d.photos || []).map((p) => p.path)), loadReportUrls(ts.slice(-1))]);
   if (!$('#drawer-body')) return;
-  const keep = body.scrollTop, mode = S.drawerMode;
+  const keep = body.scrollTop, mode = S.drawerMode, nt = S.notes[c.id], nby = nt && S.profiles[nt.updated_by], ndraft = S.noteDraft && S.noteDraft.id === c.id && S.noteDraft.v !== (nt ? nt.body : '') ? S.noteDraft.v : null;
   let h = '<div style="display:flex;align-items:center;gap:14px"><span class="avatar" style="width:48px;height:48px;font-size:15px;background:var(--forest);color:var(--btn-ink)">' + esc(initials(c.name)) + '</span>'
     + '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px"><h2 id="dr-h" style="font-size:26px">' + esc(c.name) + '</h2><span style="display:flex;gap:8px;flex-wrap:wrap"><span class="tag ' + tierCls(c.tier) + '">' + esc(c.tier) + '</span><span class="tag ' + (ago >= 2 ? 'danger' : '') + '">' + (ago === 0 ? 'Weighed in today' : ago === 1 ? 'Last weigh-in yesterday' : ago > 900 ? 'No weigh-ins yet' : 'Quiet for ' + ago + ' days') + '</span></span><span class="small muted">@' + esc(pr.username || '') + (!c.consent_at ? ' · hasn’t signed in yet' : pr.must_change_pw ? ' · still on a temporary password' : '') + '</span></div>'
     + '<button class="x" id="dr-close" type="button" data-close-drawer="1" aria-label="Close profile"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M6 6l12 12M18 6L6 18"/></svg></button></div>';
@@ -1179,11 +1274,13 @@ async function renderDrawer() {
       : '<div class="card" style="padding:16px;gap:12px;animation:none"><span class="eyebrow">Reset password</span><p class="small">Sets a new temporary password for @' + esc(pr.username || '') + ' and signs them out everywhere. Next time they sign in, they’re asked if they want to change it.</p><div class="row"><button class="btn" type="button" data-reset-go="' + esc(c.id) + '">Set a new password</button><button class="ghost" style="height:44px" type="button" data-dmode="" data-for="' + esc(c.id) + '">Cancel</button></div></div>';
   }
   h += '<div class="d-stats"><div><span class="eyebrow">Current</span><strong class="num">' + curOf(c, ws).toFixed(1) + '</strong><span class="small muted">kg · goal ' + (c.goal_kg ? num(c.goal_kg).toFixed(1) : '—') + '</span>' + (wChange(ws) ? '<span class="small">' + wChangeHtml(wChange(ws)) + '</span>' : '') + '</div><div><span class="eyebrow">Lost</span><strong class="num">' + lossPctOf(c, ws).toFixed(1) + '%</strong><span class="small muted">' + (num(c.start_kg) - curOf(c, ws)).toFixed(1) + ' kg</span></div><div><span class="eyebrow">Stars</span><strong class="num">' + c.stars + '</strong><span class="small muted">level ' + (Math.floor(c.stars / 50) + 1) + '</span></div><div><span class="eyebrow">Streak</span><strong class="num">' + liveStreak(c) + '</strong><span class="small muted">days</span></div></div>'
+    + '<form class="card" id="dn-form" style="padding:18px;gap:10px;animation:none" novalidate><label class="eyebrow" for="dn-text">Private notes · clients never see this</label><textarea class="ta" id="dn-text" maxlength="2000" rows="3" placeholder="e.g. Vegetarian, no onion or garlic. Travels on weekends. Prefers a call after 6 pm.">' + esc(ndraft != null ? ndraft : nt ? nt.body : '') + '</textarea><div class="err" id="dn-err" role="alert" hidden></div><div class="row" style="align-items:center"><button class="ghost" type="submit" id="dn-save" style="height:40px">Save note</button><span class="small muted" id="dn-meta">' + (ndraft != null ? 'Not saved yet' : nt ? 'Saved ' + fmtShort(isoDay(nt.updated_at)) + (nby ? ' by ' + esc(first(nby.display_name)) : '') : 'Only you and ' + (isCoach() ? 'the assistant' : esc(COACH)) + ' can read this.') + '</span></div></form>'
     + '<div class="card" style="padding:18px;gap:12px;animation:none"><div class="card-h"><div><span class="eyebrow">Weight trend</span></div><span class="small muted">Started at ' + num(c.start_kg).toFixed(1) + ' kg</span></div><div id="dr-chart"></div></div>'
     + '<div class="card" style="padding:18px;gap:12px;animation:none"><span class="eyebrow">Today so far</span>'
     + [['Water', (d.water || 0) + ' / 10 glasses', (d.water || 0) / 10], ['Meals', meals.length + ' logged · ' + kcal.toLocaleString('en-IN') + ' of ' + c.kcal_target + ' kcal', Math.min(meals.length / 3, 1)], ['Movement', exMin + ' / 30 min', Math.min(exMin / 30, 1)]].map((r) => '<div style="display:flex;flex-direction:column;gap:6px"><div style="display:flex;justify-content:space-between" class="small"><strong>' + r[0] + '</strong><span class="muted num">' + r[1] + '</span></div><div class="track"><div class="fill' + (r[2] >= 1 ? ' done' : '') + '" style="width:' + (r[2] * 100).toFixed(0) + '%"></div></div></div>').join('')
     + (meals.length ? '<div class="small muted">' + meals.map((m) => esc(m.n)).join(' · ') + '</div>' : '')
     + ((d.photos || []).length ? '<div class="photos big">' + d.photos.map((ph) => photoFig(ph, c.name + ' · ' + ph.t, ph.t)).join('') + '</div>' : '') + '</div>'
+    + '<div class="card" style="padding:18px;gap:4px;animation:none"><span class="eyebrow">Last 7 days</span><div id="dr-log"><span class="small muted">Loading…</span></div></div>'
     + (ts.length ? '<div class="card" style="padding:18px;gap:12px;animation:none"><span class="eyebrow">Blood test · ' + fmtShort(ts[ts.length - 1].d) + '</span>' + testsHtml(ts, S.reportUrls) + '</div>' : (c.health_consent_at ? '' : '<div class="small muted">Blood tests: not shared yet.</div>'))
     + '<div class="card" style="padding:18px;gap:10px;animation:none"><span class="eyebrow">Meal photos · earlier this week</span><div id="dr-week"><span class="small muted">Loading…</span></div></div>'
     + '<div class="card" style="padding:18px;gap:6px;animation:none"><div class="card-h"><span class="eyebrow">' + (dt ? (dn <= 4 ? 'Diet · day ' + dn + ' of 4' : 'Diet · new one due') : 'Diet') + '</span>' + (isCoach() ? '<button class="ghost" type="button" data-edit-plan="' + esc(c.id) + '">' + (dt ? 'Write new diet' : 'Write diet') + '</button>' : '') + '</div>' + (dt ? dietHtml(dt, 86) : '<span class="small muted">No diet yet.</span>') + '</div>'
@@ -1195,6 +1292,18 @@ async function renderDrawer() {
   body.innerHTML = h; body.scrollTop = keep;
   renderChart(c.goal_kg ? num(c.goal_kg) : null, ws, $('#dr-chart'), num(c.start_kg));
   loadWeekPhotos(c);
+  const nf = $('#dn-form');
+  if (nf) {
+    $('#dn-text').addEventListener('input', (e) => { S.noteDraft = { id: c.id, v: e.target.value }; $('#dn-meta').textContent = 'Not saved yet'; });
+    nf.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const b = $('#dn-save'), er = $('#dn-err'), v = $('#dn-text').value.trim(); b.disabled = true; er.hidden = true;
+      const r = await S.sb.rpc('save_client_note', { p_client: c.id, p_body: v });
+      if (r.error) { b.disabled = false; er.textContent = friendly(r.error); er.hidden = false; return; }
+      S.noteDraft = null; if (v) S.notes[c.id] = { client_id: c.id, body: v, updated_at: new Date().toISOString(), updated_by: uidNow() }; else delete S.notes[c.id];
+      toast(v ? 'Note saved' : 'Note cleared'); renderDrawer();
+    });
+  }
   const lf = $('#lq-edit');
   if (lf) {
     $('#lq-add').addEventListener('click', () => { if (document.querySelectorAll('#lq-rows .lq-row').length >= 12) return; $('#lq-rows').insertAdjacentHTML('beforeend', lqRow(['', ''])); const ins = $('#lq-rows').lastElementChild.querySelector('input'); if (ins) ins.focus(); });
@@ -1233,9 +1342,19 @@ function liquidsCard(c) {
 }
 async function loadWeekPhotos(c) {
   const box = $('#dr-week'); if (!box) return;
-  const r = await S.sb.from('day_logs').select('d,photos').eq('client_id', c.id).gte('d', addDays(TODAY, -6)).lt('d', TODAY).order('d', { ascending: false });
+  const r = await S.sb.from('day_logs').select('d,water,meals,exercise,photos').eq('client_id', c.id).gte('d', addDays(TODAY, -6)).lte('d', TODAY).order('d', { ascending: false });
   if (S.drawer !== c.id || !$('#dr-week')) return;
-  const days = ((r.data || [])).filter((x) => (x.photos || []).length);
+  const lg = $('#dr-log');
+  if (lg) {
+    const by = {}, kg = {}, cell = (v) => (v ? v : '<span class="none">—</span>'); (r.data || []).forEach((x) => { by[x.d] = x; }); wsOf(c).forEach((x) => { kg[x.d] = x.v; });
+    let h = '<div class="wk7 wk7-h"><span>Day</span><span>Kg</span><span>Water</span><span>Meals</span><span>Kcal</span><span>Min</span></div>';
+    for (let i = 0; i < 7; i++) {
+      const dd = addDays(TODAY, -i), x = by[dd] || {}, m = x.meals || [], mins = (x.exercise || []).reduce((a, e) => a + (+e.min || 0), 0), k = m.reduce((a, e) => a + (+e.k || 0), 0);
+      h += '<div class="wk7"><strong>' + (i === 0 ? 'Today' : DOW[parse(dd).getDay()] + ' ' + parse(dd).getDate()) + '</strong><span class="num">' + cell(kg[dd] != null ? kg[dd].toFixed(1) : '') + '</span><span class="num">' + cell(x.water ? x.water + '/10' : '') + '</span><span class="num">' + cell(m.length || '') + '</span><span class="num">' + cell(k ? k.toLocaleString('en-IN') : '') + '</span><span class="num">' + cell(mins || '') + '</span></div>';
+    }
+    lg.innerHTML = r.error ? '<span class="small muted">Couldn’t load the week.</span>' : h;
+  }
+  const days = ((r.data || [])).filter((x) => x.d < TODAY && (x.photos || []).length);
   if (r.error || !days.length) { $('#dr-week').innerHTML = '<span class="small muted">' + (r.error ? 'Couldn’t load photos.' : 'No photos in the six days before today.') + '</span>'; return; }
   await loadPhotoUrls([].concat(...days.map((x) => x.photos.map((ph) => ph.path))));
   if (S.drawer !== c.id || !$('#dr-week')) return;
@@ -1343,11 +1462,14 @@ function renderDiet() {
   }
   $('#dc-form-h').textContent = 'New diet for ' + first(sc.name);
   $('#dc-copy').hidden = !all.length;
+  const others = cs.filter((c) => c.id !== sc.id && (S.diets[c.id] || []).length), fsel = $('#dc-from'), fo = '<option value="">Copy from another client…</option>' + others.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('');
+  fsel.hidden = !others.length; if (fsel.dataset.sig !== fo) { fsel.innerHTML = fo; fsel.dataset.sig = fo; }
   const past = all.slice().reverse().slice(0, 6);
   $('#dc-history').innerHTML = past.length ? '<span class="eyebrow" style="display:block;margin-bottom:4px">Diets sent to ' + esc(first(sc.name)) + '</span>' + past.map((x) => '<div class="dc-hist"><span style="min-width:0;display:flex;flex-direction:column"><strong style="font-size:14px">' + fmtDay(x.start_date) + ' to ' + fmtDay(addDays(x.start_date, 3)) + (x.start_date > TODAY ? ' · upcoming' : '') + '</strong><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc([x.morning].concat(dietMeals(x), [x.night]).filter(Boolean).join(' · ')) + '</span></span><span style="display:flex;gap:6px"><button class="ghost" type="button" data-diet-reuse="' + esc(x.id) + '">Reuse</button><button class="ghost danger" type="button" data-diet-del="' + esc(x.id) + '">Delete</button></span></div>').join('') : '';
 }
 $('#dc-client').addEventListener('change', (e) => { S.sel = e.target.value; S.dietFor = null; renderDiet(); });
 $('#dc-copy').addEventListener('click', () => { const all = S.diets[S.sel] || []; if (all.length) { fillDiet(all[all.length - 1]); $('#dc-m0').focus(); } });
+$('#dc-from').addEventListener('change', (e) => { const id = e.target.value, all = S.diets[id] || [], c = S.clients.find((x) => x.id === id); e.target.value = ''; if (!all.length || !c) return; fillDiet(all[all.length - 1]); toast('Copied ' + first(c.name) + '’s latest diet. Edit it, then send.'); $('#dc-m0').focus(); });
 $('#dc-form').addEventListener('submit', async (e) => {
   e.preventDefault(); if (!isCoach() || !S.sel) return;
   const err = $('#dc-err'), fail = (m) => { err.textContent = m; err.hidden = false; };
@@ -1425,7 +1547,7 @@ async function onLive() {
   if (!S.session || $('#app').hidden) return;
   try {
     await loadThreads(); await loadComments();
-    if (S.role === 'client') { await loadPhotoUrls(S.pcs.map((x) => x.path)); await loadMsgs(S.openThread); renderClientMsgs(); renderPhotoComments(); }
+    if (S.role === 'client') { await loadPhotoUrls(S.pcs.map((x) => x.path)); await loadMsgs(S.openThread); renderClientMsgs(); renderPhotoComments(); renderToday(); }
     else { await loadMsgs(S.kThread); renderInbox(); renderStaff(); }
     if (S.zoom) renderZoom();
   } catch (e) { /* the next refresh catches up */ }
@@ -1444,13 +1566,19 @@ document.addEventListener('click', (e) => {
   if (t.id === 'retry') { route(); return; }
   if (t.hasAttribute('data-signout')) { signOut(); return; }
   if (t.dataset.closeModal) { closeModal(); return; }
+  if (t.id === 'me-login-btn') { showLoginForm(true); return; }
+  if (t.id === 'me-login-cancel') { showLoginForm(false); return; }
+  if (t.id === 'me-inst-btn') { showInstall($('#me-inst').hidden); return; }
+  if (t.id === 'me-inst-go' && installEvt) { const ev = installEvt; installEvt = null; ev.prompt(); showInstall(false); return; }
   if (t.id === 'snd') { SOUND = !SOUND; lsSet('sf-sound', SOUND ? '1' : '0'); syncSound(); if (SOUND) sfx('star'); return; }
   if (!S.session) return;
   if (t.dataset.zoom) { openZoom(t.dataset.zoom, t.dataset.cap); return; }
-  if (t.id === 'nt-on') { enablePush(); return; }
+  if (t.id === 'nt-on' || t.id === 'me-nt-on') { enablePush(t); return; }
+  if (t.id === 'rf') { if (t.classList.contains('busy')) return; t.classList.add('busy'); (S.role === 'client' ? refreshClient() : refreshStaff()).then((ok) => { t.classList.remove('busy'); if (ok) toast('Up to date'); }); return; }
   if (t.id === 'nt-later') { lsSet('sf-nt-later', String(Date.now() + 3 * 864e5)); renderNotify(); return; }
   if (t.id === 'nt-install' && installEvt) { const ev = installEvt; installEvt = null; ev.prompt(); renderNotify(); return; }
   // client
+  if (t.dataset.ctab && S.role === 'client') { if (t.dataset.ctab === 'chat' && t.dataset.thread) openChat(t.dataset.thread); else setCTab(t.dataset.ctab, t.dataset.focus); return; }
   if (t.id === 'wt-edit') { $('#wt-form').hidden = false; $('#wt-done').hidden = true; $('#wt-done').style.display = ''; $('#wt-in').value = curOf(S.me, S.weights).toFixed(1); $('#wt-in').focus(); return; }
   if (t.dataset.glass != null) {
     sfx('water'); const i = +t.dataset.glass, cur = (S.day && S.day.water) || 0, next = (i + 1 === cur) ? i : i + 1;
@@ -1474,7 +1602,6 @@ document.addEventListener('click', (e) => {
     return;
   }
   if (t.dataset.thread) { S.openThread = t.dataset.thread; loadMsgs(S.openThread).then(renderClientMsgs).catch((er) => toast(friendly(er))); return; }
-  if (t.dataset.jump) { const h = document.getElementById(t.dataset.jump); if (h) { const card = h.closest('.card, .hero') || h; window.scrollTo({ top: card.getBoundingClientRect().top + window.scrollY - 76, behavior: 'smooth' }); } document.querySelectorAll('#mbar button').forEach((b) => b.classList.toggle('on', b === t)); return; }
   if (t.dataset.react) {
     const tid = S.role === 'client' ? S.openThread : S.kThread;
     S.sb.rpc('react', { p_message: t.dataset.mid, p_emoji: t.dataset.react }).then(async (r) => { if (r.error) { toast(friendly(r.error)); return; } sfx('tap'); await loadMsgs(tid); if (S.role === 'client') renderClientMsgs(); else renderInbox(); });
@@ -1534,12 +1661,17 @@ $('#stabs').addEventListener('keydown', (e) => {
   const ids = staffTabs().map((t) => t[0]), i = ids.indexOf(S.tab), n = ids[(i + (e.key === 'ArrowRight' ? 1 : ids.length - 1)) % ids.length];
   setTab(n); const b = $('#t-' + n); if (b) b.focus();
 });
+$('#ctabs').addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  const n = CTABS[(CTABS.indexOf(S.ctab) + (e.key === 'ArrowRight' ? 1 : CTABS.length - 1)) % CTABS.length];
+  setCTab(n); const b = document.querySelector('#ctabs [data-ctab="' + n + '"]'); if (b) b.focus();
+});
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || document.querySelector('.celebrate')) return;
   if (S.zoom) closeZoom(); else if (!$('#pw-modal').hidden) closeModal(); else if (S.drawer) closeDrawer();
 });
 function syncSound() { const b = $('#snd'); b.textContent = SOUND ? 'Sound on' : 'Sound off'; b.setAttribute('aria-pressed', String(SOUND)); }
-function syncMbar() { const on = !$('#app').hidden && S.role === 'client' && !!S.me; $('#mbar').hidden = !on; document.body.classList.toggle('has-mbar', on); $('#snd').hidden = S.role !== 'client';  const st = !$('#app').hidden && isStaff(); $('#sbar').hidden = !st; document.body.classList.toggle('has-sbar', st); if (st) document.body.classList.add('has-mbar'); }
+function syncMbar() { const on = !$('#app').hidden && S.role === 'client' && !!S.me; $('#mbar').hidden = !on; $('#ctabs').hidden = !on; document.body.classList.toggle('has-mbar', on); $('#snd-row').hidden = S.role !== 'client'; const st = !$('#app').hidden && isStaff(); $('#sbar').hidden = !st; $('#stabs').hidden = !st; document.body.classList.toggle('has-sbar', st); if (st) document.body.classList.add('has-mbar'); }
 let rz = null;
 window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (S.role === 'client' && S.me && !$('#app').hidden) renderChart(S.me.goal_kg ? num(S.me.goal_kg) : null, S.weights, $('#chart-box'), num(S.me.start_kg)); }, 150); });
 function refreshVisible() {
@@ -1548,20 +1680,22 @@ function refreshVisible() {
   if (S.role === 'client') refreshClient(); else if (!S.drawer && !(document.activeElement && document.activeElement.closest('#add-form, #grp-form, #dc-form, #bc-form'))) refreshStaff();
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshVisible(); });
+function syncOnline() { $('#offline').hidden = navigator.onLine !== false; }
+window.addEventListener('online', () => { syncOnline(); refreshVisible(); });
+window.addEventListener('offline', syncOnline);
 setInterval(() => { if (document.visibilityState === 'visible' && isStaff()) refreshVisible(); }, 60000);
 
 /* card icons */
 const ICONS = { scale: 'M4 20h16M6 20l2-12h8l2 12M12 8V4M9 4h6', plate: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', drop: G.drop, run: 'M13 4a2 2 0 1 0 0 .1M7 21l3-6 3 2v4M10 15l1-5 3 2 3 1M8 11l3-1', leaf: G.leaf, target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', medal: 'M8 3l4 6 4-6M12 21a6 6 0 1 0 0-12 6 6 0 0 0 0 12z', trophy: 'M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 21h8', users: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM3 21c0-4 3-6 6-6s6 2 6 6M16 3.5a4 4 0 0 1 0 7.5M21 21c0-3-1.5-5-4-5.7', clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2', pulse: 'M3 12h4l2-5 4 10 2-5h6', chat: 'M4 5h16v11H9l-5 4z', check: 'M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9' };
-const TILE = { forest: '#1f5233', slate: '#2c5282', ember: '#c2410c', water: '#2a6db0', gold: '#a8690b', danger: '#b42318' };
-const CARD_ICONS = { 'wt-h': ['scale', 'forest'], 'cal-h': ['plate', 'ember'], 'wa-h': ['drop', 'water'], 'ex-h': ['run', 'slate'], 'pl-h': ['leaf', 'forest'], 'ch-h': ['target', 'ember'], 'ac-h': ['medal', 'gold'], 'lb-h': ['trophy', 'gold'], 'cl-h': ['users', 'forest'], 'dc-h': ['leaf', 'forest'], 'rn-h': ['clock', 'ember'], 'dx-h': ['leaf', 'slate'], 'bt-h': ['pulse', 'danger'], 'ms-h': ['chat', 'slate'], 'lq-h': ['drop', 'slate'], 'ib-h': ['chat', 'slate'], 'tk-h': ['check', 'ember'], 'ph-h': ['plate', 'ember'], 'wk-h': ['trophy', 'gold'], 'ac2-h': ['pulse', 'slate'], 'w7-h': ['scale', 'forest'], 'dl-h': ['leaf', 'forest'], 'ci-h': ['scale', 'forest'] };
+const CARD_ICONS = { 'wt-h': ['scale', 'forest'], 'cal-h': ['plate', 'ember'], 'wa-h': ['drop', 'water'], 'ex-h': ['run', 'gold'], 'pl-h': ['leaf', 'lime'], 'td-h': ['check', 'forest'], 'ch-h': ['target', 'ember'], 'ac-h': ['medal', 'gold'], 'lb-h': ['trophy', 'gold'], 'cl-h': ['users', 'forest'], 'dc-h': ['leaf', 'lime'], 'rn-h': ['clock', 'ember'], 'dx-h': ['leaf', 'slate'], 'bt-h': ['pulse', 'danger'], 'ms-h': ['chat', 'slate'], 'lq-h': ['drop', 'slate'], 'ib-h': ['chat', 'slate'], 'tk-h': ['check', 'ember'], 'ph-h': ['plate', 'ember'], 'wk-h': ['trophy', 'gold'], 'ac2-h': ['pulse', 'slate'], 'w7-h': ['scale', 'forest'], 'dl-h': ['leaf', 'lime'], 'ci-h': ['scale', 'forest'] };
 Object.entries(CARD_ICONS).forEach(([hid, [ic, col]]) => {
   const h = document.getElementById(hid); if (!h) return; const head = h.closest('.card-h > div'); if (!head) return;
   const w = document.createElement('div'); w.className = 'head'; head.parentNode.insertBefore(w, head);
-  const tile = document.createElement('span'); tile.className = 'ictile'; tile.style.background = TILE[col]; tile.setAttribute('aria-hidden', 'true');
-  tile.innerHTML = '<svg viewBox="0 0 24 24"><path class="ic" style="stroke:#fff;stroke-width:2" d="' + ICONS[ic] + '"/></svg>';
+  const tile = document.createElement('span'); tile.className = 'ictile t-' + col; tile.setAttribute('aria-hidden', 'true');
+  tile.innerHTML = '<svg viewBox="0 0 24 24"><path class="ic" style="stroke-width:2" d="' + ICONS[ic] + '"/></svg>';
   w.appendChild(tile); w.appendChild(head);
 });
 
-syncSound();
+syncSound(); syncOnline();
 boot().catch((e) => { $('#loading-text').textContent = friendly(e); show('gate-loading'); });
 })();
