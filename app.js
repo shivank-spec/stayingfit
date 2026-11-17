@@ -8,6 +8,21 @@ if (!document.getElementById('ctabs')) { let again = false; try { again = !sessi
 const CFG = window.STAYINGFIT_CONFIG || {};
 const COACH = CFG.coachName || 'your coach';
 const $ = (s) => document.querySelector(s);
+const APP_VER = '15';
+/* when the app itself breaks on someone's phone, leave a short note for whoever looks after it */
+let errSent = 0; const errSeen = {};
+function reportError(msg, src) {
+  try {
+    const m = String(msg || '').trim().slice(0, 500);
+    if (!m || errSent >= 5 || errSeen[m] || /Script error|ResizeObserver|Failed to fetch|Load failed|NetworkError|network|AbortError|JWT|refresh token|session/i.test(m)) return;
+    if (!S.sb || !S.session) return;
+    errSeen[m] = 1; errSent++;
+    S.sb.rpc('log_error', { p_msg: m, p_src: String(src || '').slice(0, 300), p_ua: navigator.userAgent, p_ver: APP_VER }).then(() => {}, () => {});
+  } catch (e) {}
+}
+window.addEventListener('error', (e) => { if (e && e.message) reportError(e.message, String(e.filename || '').split('/').pop() + ':' + e.lineno + ':' + e.colno); });
+window.addEventListener('unhandledrejection', (e) => { const r = e && e.reason; reportError((r && (r.message || r.error_description)) || String(r), r && r.stack ? String(r.stack).split('\n').slice(0, 3).join(' | ') : 'promise'); });
+const mb = (b) => (b >= 1073741824 ? (b / 1073741824).toFixed(b % 1073741824 ? 1 : 0) + ' GB' : Math.round(b / 1048576) + ' MB');
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
@@ -222,7 +237,7 @@ function freshState() {
     threads: [], msgs: {}, openThread: null, dmId: null, kThread: null, pcs: [], zoom: null, pushOn: false, pushErr: '',
     clients: [], profiles: {}, allWeights: {}, days: {}, diets: {}, liq: {}, ticks: {}, allTests: {}, ibox: 'mine', kOpen: false, dietFor: null,
     exType: 'Walk', q: '', pick: null, seen: {}, diet: null, dietNext: null, liquids: [], ticked: new Set(), asstId: null, lb: 'loss', tier: 'All', cq: '', sortK: 'name', sortDir: 1, sel: null, drawer: null, drawerMode: null,
-    counted: {}, lvlSeen: null, chain: Promise.resolve(), lastGlass: -1, tab: null, cred: null, ctab: 'home', seenLoaded: false, notes: {}, noteDraft: null
+    counted: {}, lvlSeen: null, chain: Promise.resolve(), lastGlass: -1, tab: null, cred: null, ctab: 'home', seenLoaded: false, notes: {}, noteDraft: null, usage: null, tkOpen: {}, ciAll: false
   };
 }
 Object.assign(S, { sb: null, session: null, rt: null }, freshState());
@@ -249,6 +264,8 @@ function navKill(kind) { const en = NREF[kind]; if (en) { en.dead = true; NREF[k
 function navReset() { NAV.forEach((x) => { x.dead = true; }); Object.keys(NREF).forEach((k) => { NREF[k] = null; }); }
 window.addEventListener('popstate', (e) => {
   if (navHold) { navHold = false; return; }
+  /* the address gained a #link while the app was open: that is a new step, not a Back press. Adopt it and undo nothing */
+  if (!e.state || e.state.sfi == null) { try { history.replaceState({ sfi: NAV.length }, ''); } catch (er) {} return; }
   const i = Math.max(0, +((e.state && e.state.sfi) || 0));
   if (i > NAV.length) { navHold = true; history.go(NAV.length - i); return; }   // Forward is not a thing here: step back to where the app is
   let undone = 0;
@@ -267,7 +284,7 @@ const WORDS = ['Wellness', 'Balance', 'Vitality', 'Healthy', 'Active', 'Energy',
 function tempPassword() { const r = new Uint32Array(2); crypto.getRandomValues(r); return WORDS[r[0] % WORDS.length] + '@' + String(1000 + (r[1] % 9000)); }
 function suggestUsername(name) { const p = String(name || '').toLowerCase().normalize('NFKD').replace(/[^a-z\s]/g, '').trim().split(/\s+/).filter(Boolean); if (!p.length) return ''; let u = p[0] + (p[1] ? p[1][0] : ''); if (u.length < 3) u = (u + 'fit').slice(0, 6); return u.slice(0, 30); }
 function loginMessage(name, username, pw) {
-  return 'Hi ' + first(name) + '! Here is your Stayingfit login.\n\nOpen: ' + appUrl() + '\nSign in with:\nUsername: ' + username + '\nPassword: ' + pw + '\n\nThe first time you sign in, you can change your username and password.';
+  return 'Hi ' + first(name) + '! Here is your Stayingfit login.\n\nOpen: ' + appUrl() + '\nSign in with:\nUsername: ' + username + '\nPassword: ' + pw + '\n\nThe first time you sign in, you can change your username and password.\n\nTip: add the app to your home screen and turn on notifications when it asks, so you never miss your diet or a message from ' + COACH + '.';
 }
 async function copyText(t) { try { await navigator.clipboard.writeText(t); toast('Copied. Paste it into WhatsApp.'); } catch (e) { toast('Couldn’t copy. Select the text and copy it.'); } }
 
@@ -449,6 +466,24 @@ function renderMe() {
   const inst = standalone();
   $('#me-inst-sub').textContent = inst ? 'Installed on this device' : 'Put Stayingfit on your home screen';
   $('#me-inst-btn').hidden = inst; if (inst) $('#me-inst').hidden = true;
+  const U = S.usage, ur = $('#me-use-row'); ur.hidden = !(isStaff() && U);
+  if (isStaff() && U) $('#me-use').textContent = 'Photos ' + mb(U.file_bytes) + ' of ' + mb(U.file_limit) + ' · Data ' + mb(U.db_bytes) + ' of ' + mb(U.db_limit) + ' · ' + (U.last_backup ? 'Last backup ' + (isoDay(U.last_backup) === TODAY ? 'today, ' : '') + msgTime(U.last_backup) : 'No backup yet');
+  $('#me-data').hidden = !isCoach();
+  $('#me-ver').textContent = ' · Version ' + APP_VER;
+}
+/* the coach keeps her own copy of everything she can read */
+async function downloadData(btn) {
+  if (!isCoach() || btn.disabled) return;
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Preparing…';
+  try {
+    const T = [['clients', 'id'], ['profiles', 'id'], ['weights', 'client_id,d'], ['day_logs', 'client_id,d'], ['diets', 'id'], ['blood_tests', 'id'], ['liquids', 'id'], ['liquid_ticks', 'client_id,d,liquid_id'], ['threads', 'id'], ['thread_members', 'thread_id,client_id'], ['messages', 'id'], ['photo_comments', 'id'], ['client_notes', 'client_id']];
+    const out = { app: 'Stayingfit', exported_at: new Date().toISOString(), exported_by: S.profile.username, note: 'Everything the coach can read. Meal photos and report files are not included. Keep this file private.', tables: {} };
+    for (const [t, ord] of T) out.tables[t] = (await allRows(() => ord.split(',').reduce((q, k) => q.order(k), S.sb.from(t).select('*')))).data;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' })), a = document.createElement('a');
+    a.href = url; a.download = 'stayingfit-data-' + TODAY + '.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+    toast('Saved ' + out.tables.clients.length + ' clients’ data. Keep the file private.');
+  } catch (e) { toast(friendly(e)); }
+  btn.disabled = false; btn.textContent = 'Download data';
 }
 /* how to put the app on the home screen, for the device in hand */
 function installHtml() {
@@ -513,7 +548,7 @@ function queue(task) {
   S.chain = S.chain.then(task).catch((e) => { toast(friendly(e)); return refreshClient(); });
   return S.chain;
 }
-async function refreshClient() { try { await loadClient(); renderClient(); return true; } catch (e) { toast(friendly(e)); return false; } }
+async function refreshClient() { try { await loadClient(); renderClient(); return true; } catch (e) { toast(friendly(e)); reportError('loadClient: ' + ((e && e.message) || e), 'load'); return false; } }
 /* which chats hold something new: remembered on this device, so the badge survives closing the app */
 const seenKey = () => 'sf-seen-' + uidNow();
 function saveSeen() { lsSet(seenKey(), JSON.stringify(S.seen)); }
@@ -799,7 +834,7 @@ $('#ph-in').addEventListener('change', (e) => {
   if (((S.day && S.day.photos) || []).length >= 6) { toast('You can add up to 6 photos a day.'); return; }
   const url = URL.createObjectURL(f), img = new Image();
   img.onload = () => {
-    const k = Math.min(1, 1024 / Math.max(img.width, img.height)), cv = document.createElement('canvas');
+    const k = Math.min(1, 880 / Math.max(img.width, img.height)), cv = document.createElement('canvas');
     cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url);
     cv.toBlob((blob) => {
       if (!blob) { toast('That photo couldn’t be read. Try another.'); return; }
@@ -813,7 +848,7 @@ $('#ph-in').addEventListener('change', (e) => {
         if (error) throw error;
         await loadClient(); renderClient(); reward(data, 'Meal photo shared');
       });
-    }, 'image/jpeg', 0.78);
+    }, 'image/jpeg', 0.7);
   };
   img.onerror = () => { URL.revokeObjectURL(url); toast('That photo couldn’t be read. Try a JPG or PNG.'); };
   img.src = url;
@@ -891,16 +926,22 @@ $('#c-comp').addEventListener('submit', (e) => {
 /* ================================================================== */
 async function loadStaff() {
   const since = addDays(TODAY, -120);
-  const [c, p, w, d, dt, t, lq, tk] = await Promise.all([
+  const dcols = 'id,client_id,start_date,meals,notes,morning,night,created_at';
+  const [c, p, w, d, dt, t, lq, tk, us, nt] = await Promise.all([
     S.sb.from('clients').select('*').order('name'),
     S.sb.from('profiles').select('id,username,role,display_name,must_change_pw'),
     allRows(() => S.sb.from('weights').select('client_id,d,kg,at').gte('d', since).order('d').order('client_id')),
     S.sb.from('day_logs').select('*').eq('d', TODAY),
-    S.sb.from('diets').select('id,client_id,start_date,meals,notes,morning,night,created_at').order('start_date'),
-    S.sb.from('blood_tests').select('*').order('d'),
-    S.sb.from('liquids').select('id,client_id,name,when_text,sort').eq('active', true).order('sort'),
-    S.sb.from('liquid_ticks').select('client_id,liquid_id,at').eq('d', TODAY)
+    allRows(() => S.sb.from('diets_recent').select(dcols).order('start_date').order('id'))
+      .catch(() => allRows(() => S.sb.from('diets').select(dcols).gte('start_date', addDays(TODAY, -45)).order('start_date').order('id'))),
+    allRows(() => S.sb.from('blood_tests').select('*').order('d').order('id')),
+    allRows(() => S.sb.from('liquids').select('id,client_id,name,when_text,sort').eq('active', true).order('sort').order('id')),
+    allRows(() => S.sb.from('liquid_ticks').select('client_id,liquid_id,at').eq('d', TODAY).order('liquid_id')),
+    S.sb.rpc('app_usage').then((r) => r, () => ({ error: true })),
+    S.sb.from('client_notes').select('client_id,body,updated_at,updated_by'),
+    loadComments(), loadThreads()
   ]);
+  if (us && !us.error && us.data) S.usage = us.data;
   [c, p, w, d, dt, t, lq, tk].forEach(fixErr);
   S.clients = c.data || []; S.profiles = {}; S.allWeights = {}; S.days = {}; S.diets = {}; S.allTests = {}; S.liq = {}; S.ticks = {};
   (p.data || []).forEach((x) => { S.profiles[x.id] = x; });
@@ -910,10 +951,7 @@ async function loadStaff() {
   (t.data || []).forEach((x) => { (S.allTests[x.client_id] = S.allTests[x.client_id] || []).push(x); });
   (lq.data || []).forEach((x) => { (S.liq[x.client_id] = S.liq[x.client_id] || []).push(x); });
   (tk.data || []).forEach((x) => { (S.ticks[x.client_id] = S.ticks[x.client_id] || {})[x.liquid_id] = x.at; });
-  await loadComments();
-  const nt = await S.sb.from('client_notes').select('client_id,body,updated_at,updated_by');
   if (!nt.error) { S.notes = {}; (nt.data || []).forEach((x) => { S.notes[x.client_id] = x; }); }
-  await loadThreads();
   if (!S.threads.some((x) => x.kind === 'team')) { const r = await S.sb.rpc('ensure_team'); if (!r.error) await loadThreads(); }
   const mine = inboxThreads();
   if (!S.kThread || !mine.find((x) => x.id === S.kThread)) { const wt = mine.find(needsMe) || mine.find((x) => x.kind !== 'team') || mine[0]; S.kThread = wt ? wt.id : null; }
@@ -922,7 +960,7 @@ async function loadStaff() {
 let staffBusy = false;
 async function refreshStaff() {
   if (staffBusy) return; staffBusy = true;
-  try { await loadStaff(); renderStaff(); if (S.drawer) renderDrawer(); return true; } catch (e) { toast(friendly(e)); return false; } finally { staffBusy = false; }
+  try { await loadStaff(); renderStaff(); if (S.drawer) renderDrawer(); return true; } catch (e) { toast(friendly(e)); reportError('loadStaff: ' + ((e && e.message) || e), 'load'); return false; } finally { staffBusy = false; }
 }
 const wsOf = (c) => S.allWeights[c.id] || [];
 const profOf = (c) => S.profiles[c.user_id] || {};
@@ -950,7 +988,8 @@ const startsTxt = (dt) => (dietDay1(dt) === addDays(TODAY, 1) ? 'tomorrow' : fmt
 const liqOf = (c) => S.liq[c.id] || [];
 const liqDone = (c) => { const T = S.ticks[c.id] || {}; return liqOf(c).filter((x) => T[x.id]).length; };
 const tmin = (t) => { const m = /^(\d+):(\d+)\s*(AM|PM)$/i.exec(String(t || '').trim()); if (!m) return -1; let h = +m[1] % 12; if (/pm/i.test(m[3])) h += 12; return h * 60 + +m[2]; };
-const isoDay = (iso) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+const isoSeen = new Map();
+const isoDay = (iso) => { let v = isoSeen.get(iso); if (!v) { if (isoSeen.size > 5000) isoSeen.clear(); v = new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); isoSeen.set(iso, v); } return v; };
 const isoMin = (iso) => { const x = new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }); return +x.slice(0, 2) * 60 + +x.slice(3, 5); };
 const minLabel = (m) => (m < 0 ? 'TODAY' : ((Math.floor(m / 60) + 11) % 12 + 1) + ':' + pad(m % 60) + (m < 720 ? ' AM' : ' PM'));
 async function coachUpdate(id, patch, msg) {
@@ -1175,36 +1214,53 @@ function renderW7() {
 
 /* follow-ups: what needs doing today, most urgent first */
 function buildTasks() {
-  const out = [], hr = istHour();
-  waitingThreads().forEach((t) => out.push({ p: 1, title: t.kind === 'team' ? threadName(t) + ' sent you a message' : threadName(t) + (t.kind === 'family' ? ' (family group)' : '') + ' is waiting for a reply', sub: '“' + (t.last_text || '') + '” · ' + msgTime(t.last_at), acts: [['Reply', 'data-kth="' + esc(t.id) + '" data-go="messages"', 'btn'], ['Mark done', 'data-done-thread="' + esc(t.id) + '"', 'ghost']] }));
+  const out = [], hr = istHour(), U = S.usage;
+  if (U) {
+    const fp = U.file_limit ? U.file_bytes / U.file_limit : 0, dp = U.db_limit ? U.db_bytes / U.db_limit : 0;
+    if (fp >= 0.8) out.push({ g: 'app', p: fp >= 0.95 ? 1 : 2, title: 'Photo space is ' + Math.round(fp * 100) + '% full', sub: mb(U.file_bytes) + ' of ' + mb(U.file_limit) + ' used. Once it is full, clients can’t add photos. Ask for more space now.', acts: [] });
+    if (dp >= 0.8) out.push({ g: 'app', p: dp >= 0.95 ? 1 : 2, title: 'The database is ' + Math.round(dp * 100) + '% full', sub: mb(U.db_bytes) + ' of ' + mb(U.db_limit) + ' used. Once it is full, nothing new can be saved. Ask for more space now.', acts: [] });
+    if (isCoach() && (!U.last_backup || Date.now() - new Date(U.last_backup).getTime() > 36 * 36e5)) out.push({ g: 'app', p: 1, title: 'The nightly backup ' + (U.last_backup ? 'hasn’t run since ' + msgTime(U.last_backup) : 'has never run'), sub: 'Your data isn’t being copied each night. Report this today.', acts: [] });
+  }
+  waitingThreads().forEach((t) => out.push({ g: 'reply', p: 1, title: t.kind === 'team' ? threadName(t) + ' sent you a message' : threadName(t) + (t.kind === 'family' ? ' (family group)' : '') + ' is waiting for a reply', sub: '“' + (t.last_text || '') + '” · ' + msgTime(t.last_at), acts: [['Reply', 'data-kth="' + esc(t.id) + '" data-go="messages"', 'btn'], ['Mark done', 'data-done-thread="' + esc(t.id) + '"', 'ghost']] }));
   S.clients.forEach((c) => {
     const pr = profOf(c), ago = lastLogAgo(c), age = diffDays(String(c.created_at).slice(0, 10), TODAY);
-    if (!c.consent_at) { if (age >= 1) out.push({ p: 3, title: c.name + ' hasn’t signed in yet', sub: 'Added ' + fmtShort(String(c.created_at).slice(0, 10)) + '. Check they got their login.', acts: isCoach() ? [['Send new login', 'data-pick="' + esc(c.id) + '" data-dmode="reset"', 'ghost']] : [] }); return; }
-    if (ago >= 2 && (c.last_log_date || age >= 2)) out.push({ p: c.tier === 'Hand-holding' ? 1 : 2, title: c.name + (c.last_log_date ? ' hasn’t logged for ' + ago + ' days' : ' hasn’t logged anything yet'), sub: c.tier + ' check-ins' + (c.last_log_date ? ' · last weigh-in ' + fmtShort(c.last_log_date) : ''), acts: [['Message', 'data-msg-client="' + esc(c.id) + '" data-draft="checkin"', 'ghost']] });
-    else if (c.tier === 'Hand-holding' && ago >= 1 && hr >= 11) out.push({ p: 2, title: c.name + ': no weigh-in yet today', sub: 'Hand-holding · streak ' + liveStreak(c) + ' days', acts: [['Nudge', 'data-msg-client="' + esc(c.id) + '" data-draft="nudge"', 'ghost']] });
+    if (!c.consent_at) { if (age >= 1) out.push({ g: 'signin', p: 3, title: c.name + ' hasn’t signed in yet', sub: 'Added ' + fmtShort(String(c.created_at).slice(0, 10)) + '. Check they got their login.', acts: isCoach() ? [['Send new login', 'data-pick="' + esc(c.id) + '" data-dmode="reset"', 'ghost']] : [] }); return; }
+    if (ago >= 2 && (c.last_log_date || age >= 2)) out.push({ g: 'quiet', p: c.tier === 'Hand-holding' ? 1 : 2, title: c.name + (c.last_log_date ? ' hasn’t logged for ' + ago + ' days' : ' hasn’t logged anything yet'), sub: c.tier + ' check-ins' + (c.last_log_date ? ' · last weigh-in ' + fmtShort(c.last_log_date) : ''), acts: [['Message', 'data-msg-client="' + esc(c.id) + '" data-draft="checkin"', 'ghost']] });
+    else if (c.tier === 'Hand-holding' && ago >= 1 && hr >= 11) out.push({ g: 'quiet', p: 2, title: c.name + ': no weigh-in yet today', sub: 'Hand-holding · streak ' + liveStreak(c) + ' days', acts: [['Nudge', 'data-msg-client="' + esc(c.id) + '" data-draft="nudge"', 'ghost']] });
     const pl = planLeft(c);
-    if (pl <= 3) out.push({ p: pl < 0 ? 1 : 2, title: c.name + '’s plan ' + (pl < 0 ? 'ended ' + (-pl) + ' day' + (pl === -1 ? '' : 's') + ' ago' : pl === 0 ? 'ends today' : 'ends in ' + pl + ' day' + (pl === 1 ? '' : 's')), sub: c.tier + ' · ' + fmtDay(c.plan_end), acts: [['Send reminder', 'data-remind="' + esc(c.id) + '"', 'ghost']].concat(isCoach() ? [['Renew 30 days', 'data-renew="' + esc(c.id) + '"', 'ghost']] : []) });
+    if (pl <= 3) out.push({ g: 'plan', p: pl < 0 ? 1 : 2, title: c.name + '’s plan ' + (pl < 0 ? 'ended ' + (-pl) + ' day' + (pl === -1 ? '' : 's') + ' ago' : pl === 0 ? 'ends today' : 'ends in ' + pl + ' day' + (pl === 1 ? '' : 's')), sub: pl <= -83 && isCoach() ? 'Your privacy notice promises to delete their data within 90 days of the plan ending. Renew the plan, or delete the client.' : c.tier + ' · ' + fmtDay(c.plan_end), acts: [['Send reminder', 'data-remind="' + esc(c.id) + '"', 'ghost']].concat(isCoach() ? [['Renew 30 days', 'data-renew="' + esc(c.id) + '"', 'ghost']] : [], pl <= -83 && isCoach() ? [['Open profile', 'data-pick="' + esc(c.id) + '"', 'ghost']] : []) });
     const dx = detoxUntil(c);
-    if (dx <= 1) out.push({ p: dx < 0 ? 2 : 3, title: c.name + ': detox day ' + (dx < 0 ? 'overdue by ' + (-dx) + ' day' + (dx === -1 ? '' : 's') : dx === 0 ? 'today' : 'tomorrow'), sub: 'Every ' + c.detox_freq + ' days · ' + c.detox_done + ' done', acts: isCoach() ? [['Mark done', 'data-detox="' + esc(c.id) + '"', 'ghost']] : [['Message', 'data-msg-client="' + esc(c.id) + '" data-draft="detox"', 'ghost']] });
+    if (dx <= 1) out.push({ g: 'detox', p: dx < 0 ? 2 : 3, title: c.name + ': detox day ' + (dx < 0 ? 'overdue by ' + (-dx) + ' day' + (dx === -1 ? '' : 's') : dx === 0 ? 'today' : 'tomorrow'), sub: 'Every ' + c.detox_freq + ' days · ' + c.detox_done + ' done', acts: isCoach() ? [['Mark done', 'data-detox="' + esc(c.id) + '"', 'ghost']] : [['Message', 'data-msg-client="' + esc(c.id) + '" data-draft="detox"', 'ghost']] });
     if (c.consent_at) {
       const dt = curDiet(c), nx = nextDiet(c), dn = dt ? dietDay(dt) : 0, wd = [['Write diet', 'data-edit-plan="' + esc(c.id) + '"', 'ghost']];
       if (nx) { /* the next diet is already sent */ }
-      else if (isCoach() && !dt) out.push({ p: 2, title: c.name + ' has no diet yet', sub: 'Write their first 4-day diet', acts: wd });
-      else if (isCoach() && dn > 4) out.push({ p: 1, title: c.name + ' needs a new diet', sub: 'The last one ended ' + fmtDay(addDays(dietDay1(dt), 3)), acts: wd });
-      else if (isCoach() && dn === 4) out.push({ p: 3, title: c.name + '’s diet ends today', sub: 'Send the next one today and it starts ' + fmtDay(addDays(TODAY, 1)), acts: wd });
+      else if (isCoach() && !dt) out.push({ g: 'diet', p: 2, title: c.name + ' has no diet yet', sub: 'Write their first 4-day diet', acts: wd });
+      else if (isCoach() && dn > 4) out.push({ g: 'diet', p: 1, title: c.name + ' needs a new diet', sub: 'The last one ended ' + fmtDay(addDays(dietDay1(dt), 3)), acts: wd });
+      else if (isCoach() && dn === 4) out.push({ g: 'diet', p: 3, title: c.name + '’s diet ends today', sub: 'Send the next one today and it starts ' + fmtDay(addDays(TODAY, 1)), acts: wd });
       const L = liqOf(c).length, D = liqDone(c);
-      if (L && D < L && hr >= 14) out.push({ p: 3, title: c.name + ' hasn’t ticked today’s liquids', sub: D + ' of ' + L + ' taken so far', acts: [['Message', 'data-msg-client="' + esc(c.id) + '" data-draft="liquids"', 'ghost']] });
-      if (isCoach() && L && c.liquids_updated && diffDays(c.liquids_updated, TODAY) >= 30) out.push({ p: 3, title: c.name + '’s liquids list is a month old', sub: 'Last updated ' + fmtShort(c.liquids_updated), acts: [['Update list', 'data-pick="' + esc(c.id) + '" data-dmode="liquids"', 'ghost']] });
+      if (L && D < L && hr >= 14) out.push({ g: 'liquid', p: 3, title: c.name + ' hasn’t ticked today’s liquids', sub: D + ' of ' + L + ' taken so far', acts: [['Message', 'data-msg-client="' + esc(c.id) + '" data-draft="liquids"', 'ghost']] });
+      if (isCoach() && L && c.liquids_updated && diffDays(c.liquids_updated, TODAY) >= 30) out.push({ g: 'liquid', p: 3, title: c.name + '’s liquids list is a month old', sub: 'Last updated ' + fmtShort(c.liquids_updated), acts: [['Update list', 'data-pick="' + esc(c.id) + '" data-dmode="liquids"', 'ghost']] });
     }
     const ts = S.allTests[c.id] || [], tl = ts[ts.length - 1];
-    if (tl && diffDays(String(tl.created_at).slice(0, 10), TODAY) <= 7) { const bad = TESTS.filter((T) => tl[T[0]] != null && T[3](+tl[T[0]]) === 2).map((T) => T[1] + ' ' + (+tl[T[0]])); if (bad.length) out.push({ p: 2, title: c.name + ': blood test needs a look', sub: bad.join(' · ') + ' · report ' + fmtShort(tl.d), acts: [['View', 'data-pick="' + esc(c.id) + '"', 'ghost']] }); }
+    if (tl && diffDays(String(tl.created_at).slice(0, 10), TODAY) <= 7) { const bad = TESTS.filter((T) => tl[T[0]] != null && T[3](+tl[T[0]]) === 2).map((T) => T[1] + ' ' + (+tl[T[0]])); if (bad.length) out.push({ g: 'health', p: 2, title: c.name + ': blood test needs a look', sub: bad.join(' · ') + ' · report ' + fmtShort(tl.d), acts: [['View', 'data-pick="' + esc(c.id) + '"', 'ghost']] }); }
   });
   return out.sort((a, b) => a.p - b.p);
+}
+const TK_GROUPS = [['app', 'The app'], ['reply', 'Waiting for a reply'], ['diet', 'Diets'], ['plan', 'Plans'], ['quiet', 'Not logging'], ['signin', 'Not signed in yet'], ['detox', 'Detox days'], ['liquid', 'Liquids'], ['health', 'Blood tests']];
+/* a short list stays as it is; a long one is grouped, with three shown per group until it is opened */
+function tasksHtml(tasks, row) {
+  if (tasks.length <= 12) return tasks.map(row).join('');
+  return TK_GROUPS.map(([g, label]) => {
+    const list = tasks.filter((t) => t.g === g); if (!list.length) return '';
+    const open = !!S.tkOpen[g], shown = open ? list : list.slice(0, 3);
+    return '<div class="fu-g"><span class="eyebrow">' + label + ' · ' + list.length + '</span>' + (list.length > 3 ? '<button class="linkbtn" type="button" data-tk-group="' + g + '" aria-expanded="' + open + '">' + (open ? 'Show fewer' : 'Show all ' + list.length) + '</button>' : '') + '</div>' + shown.map(row).join('');
+  }).join('') + tasks.filter((t) => !TK_GROUPS.some((x) => x[0] === t.g)).map(row).join('');
 }
 function renderTasks(tasks) {
   $('#tk-eyebrow').textContent = isCoach() ? 'Needs you today' : 'Your list for today';
   $('#tk-count').textContent = tasks.length ? tasks.length + ' open' : '';
-  $('#tasks').innerHTML = tasks.length ? tasks.map((t) => '<div class="fu"><span class="dot p' + t.p + '" aria-hidden="true"></span><div class="fu-t"><strong>' + esc(t.title) + '</strong><span class="small muted">' + esc(t.sub) + '</span></div><div class="fu-a">' + t.acts.map((a) => '<button class="' + a[2] + '" type="button" ' + a[1] + ' style="height:36px">' + a[0] + '</button>').join('') + '</div></div>').join('')
+  const row = (t) => '<div class="fu"><span class="dot p' + t.p + '" aria-hidden="true"></span><div class="fu-t"><strong>' + esc(t.title) + '</strong><span class="small muted">' + esc(t.sub) + '</span></div><div class="fu-a">' + t.acts.map((a) => '<button class="' + a[2] + '" type="button" ' + a[1] + ' style="height:36px">' + a[0] + '</button>').join('') + '</div></div>';
+  $('#tasks').innerHTML = tasks.length ? tasksHtml(tasks, row)
     : '<div class="empty">' + (S.clients.length ? 'All clear. Nobody needs a follow-up right now.' : (isCoach() ? START_HTML : 'Follow-ups appear here once ' + esc(COACH) + ' adds clients.')) + '</div>';
 }
 function renderCheckins() {
@@ -1212,8 +1268,9 @@ function renderCheckins() {
   $('#ci-h').textContent = n ? done.length + ' of ' + n + ' weighed in' : 'Weigh-ins';
   $('#ci-fill').style.width = n ? (done.length / n * 100).toFixed(1) + '%' : '0%';
   const rows = cs.slice().sort((a, b) => (b.last_log_date === TODAY) - (a.last_log_date === TODAY) || a.name.localeCompare(b.name));
-  $('#ci-list').innerHTML = n ? rows.map((c) => { const d = S.days[c.id], ok = c.last_log_date === TODAY;
-    return '<div class="ci-row"><span class="avatar">' + esc(initials(c.name)) + '</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(c.name) + '</span><span class="small ' + (ok ? 'ok' : 'no') + '">' + (ok ? 'Weighed in' : 'Not yet') + (d ? ' · ' + (d.water || 0) + '/10 water' : '') + '</span></div>'; }).join('')
+  const few = n > 10 && !S.ciAll;
+  $('#ci-list').innerHTML = n ? (few ? rows.slice(0, 8) : rows).map((c) => { const d = S.days[c.id], ok = c.last_log_date === TODAY;
+    return '<div class="ci-row"><span class="avatar">' + esc(initials(c.name)) + '</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(c.name) + '</span><span class="small ' + (ok ? 'ok' : 'no') + '">' + (ok ? 'Weighed in' : 'Not yet') + (d ? ' · ' + (d.water || 0) + '/10 water' : '') + '</span></div>'; }).join('') + (n > 10 ? '<button class="linkbtn" type="button" data-ci-all="1" aria-expanded="' + !few + '">' + (few ? 'Show all ' + n : 'Show fewer') + '</button>' : '')
     : '<div class="small muted">No clients yet.</div>';
 }
 
@@ -1282,6 +1339,21 @@ $('#add-form').addEventListener('submit', async (e) => {
 });
 $('#cl-q').addEventListener('input', (e) => { S.cq = e.target.value; renderClientsTable(); });
 
+/* a deleted client's photos and report files go first, then the client and everything they logged */
+async function deleteClient(id) {
+  try {
+    const f = await S.sb.rpc('client_files', { p_client: id });
+    if (f.error && f.error.code !== 'PGRST202') return friendly(f.error);
+    const by = {}; ((!f.error && f.data) || []).forEach((x) => { (by[x.bucket] = by[x.bucket] || []).push(x.path); });
+    for (const b of Object.keys(by)) for (let i = 0; i < by[b].length; i += 100) {
+      const r = await S.sb.storage.from(b).remove(by[b].slice(i, i + 100));
+      if (r.error) return 'Their photos couldn’t be removed, so nothing was deleted. Try again.';
+    }
+    const { error } = await S.sb.rpc('delete_client', { p_client: id });
+    return error ? friendly(error) : null;
+  } catch (e) { return friendly(e); }
+}
+
 /* client profile drawer */
 function openDrawer(id, mode) {
   S.drawer = id; S.drawerMode = mode || null; S.rmConfirm = null; S.dcred = null;
@@ -1334,7 +1406,7 @@ async function renderDrawer() {
     + '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="eyebrow" style="width:100%">Badges</span>' + BADGES.map((b) => '<span style="display:flex;align-items:center;gap:6px" class="small"><svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true"><path ' + (bs[b.k] ? 'style="fill:' + b.fill + '"' : 'class="hex-l"') + ' d="' + HEX + '"/><g transform="translate(20 20)"><path class="gl' + (bs[b.k] ? ' on' : '') + '" d="' + b.g + '"/></g></svg>' + (bs[b.k] ? b.name : '<span class="muted">' + b.name + '</span>') + '</span>').join('') + '</div>'
     + '<div class="small">Plan ' + fmtShort(c.plan_start) + ' to ' + fmtDay(c.plan_end) + (planLeft(c) < 0 ? ' (ended)' : '') + ' · detox every ' + c.detox_freq + ' days · ' + c.kcal_target + ' kcal target</div>';
   if (isCoach()) h += '<div style="display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px"><button class="ghost" style="height:44px" type="button" data-renew="' + esc(c.id) + '">Renew 30 days</button>'
-    + (S.rmConfirm === c.id ? '<span class="small" style="align-self:center;flex-basis:100%">Delete ' + esc(first(c.name)) + ', their login and all their logs? This can’t be undone.</span><button class="ghost" style="height:44px" type="button" data-rm-no="1">Keep</button><button class="ghost danger" style="height:44px" type="button" data-rm-yes="' + esc(c.id) + '">Delete for good</button>' : '<button class="ghost danger" style="height:44px" type="button" data-rm="' + esc(c.id) + '">Delete client</button>') + '</div>';
+    + (S.rmConfirm === c.id ? '<span class="small" style="align-self:center;flex-basis:100%">Delete ' + esc(first(c.name)) + ', their login, all their logs and their photos? This can’t be undone.</span><button class="ghost" style="height:44px" type="button" data-rm-no="1">Keep</button><button class="ghost danger" style="height:44px" type="button" data-rm-yes="' + esc(c.id) + '">Delete for good</button>' : '<button class="ghost danger" style="height:44px" type="button" data-rm="' + esc(c.id) + '">Delete client</button>') + '</div>';
   body.innerHTML = h; body.scrollTop = keep;
   renderChart(c.goal_kg ? num(c.goal_kg) : null, ws, $('#dr-chart'), num(c.start_kg));
   loadWeekPhotos(c);
@@ -1488,7 +1560,8 @@ function dietStatus(c) {
 }
 function fillDiet(dt) { const m = dietMeals(dt); [0, 1, 2, 3, 4].forEach((i) => { $('#dc-m' + i).value = m[i] || ''; }); $('#dc-notes').value = dt.notes || ''; $('#dc-am').value = dt.morning || ''; $('#dc-pm').value = dt.night || ''; }
 function renderDiet() {
-  const cs = S.clients.slice().sort((a, b) => dietStatus(a)[2] - dietStatus(b)[2] || a.name.localeCompare(b.name));
+  const rank = new Map(S.clients.map((c) => [c.id, dietStatus(c)[2]]));
+  const cs = S.clients.slice().sort((a, b) => rank.get(a.id) - rank.get(b.id) || a.name.localeCompare(b.name));
   if (!S.sel || !cs.find((c) => c.id === S.sel)) { S.sel = cs[0] ? cs[0].id : null; S.dietFor = null; }
   const sc = cs.find((c) => c.id === S.sel), dsel = $('#dc-client');
   $('#dc-list').innerHTML = cs.length ? cs.map((c) => { const st = dietStatus(c);
@@ -1618,6 +1691,7 @@ document.addEventListener('click', (e) => {
   if (t.id === 'me-login-btn') { showLoginForm(true); return; }
   if (t.id === 'me-login-cancel') { showLoginForm(false); return; }
   if (t.id === 'me-inst-btn') { showInstall($('#me-inst').hidden); return; }
+  if (t.id === 'me-data') { downloadData(t); return; }
   if (t.id === 'me-inst-go' && installEvt) { const ev = installEvt; installEvt = null; ev.prompt(); showInstall(false); return; }
   if (t.id === 'snd') { SOUND = !SOUND; lsSet('sf-sound', SOUND ? '1' : '0'); syncSound(); if (SOUND) sfx('star'); return; }
   if (!S.session) return;
@@ -1673,6 +1747,8 @@ document.addEventListener('click', (e) => {
     return;
   }
   if (t.dataset.tier) { S.tier = t.dataset.tier; renderClientsTable(); return; }
+  if (t.dataset.tkGroup) { S.tkOpen[t.dataset.tkGroup] = !S.tkOpen[t.dataset.tkGroup]; renderTasks(buildTasks()); return; }
+  if (t.dataset.ciAll) { S.ciAll = !S.ciAll; renderCheckins(); return; }
   if (t.dataset.sort) { const k = t.dataset.sort; if (S.sortK === k) S.sortDir = -S.sortDir; else { S.sortK = k; S.sortDir = (k === 'name' || k === 'last' || k === 'end') ? 1 : -1; } renderClientsTable(); return; }
   if (t.dataset.pick) { openDrawer(t.dataset.pick, t.dataset.dmode || null); return; }
   if (t.dataset.closeDrawer) { closeDrawer(); return; }
@@ -1703,7 +1779,7 @@ document.addEventListener('click', (e) => {
   if (t.dataset.editPlan) { S.sel = t.dataset.editPlan; S.dietFor = null; closeDrawer(); setTab('diet'); renderDiet(); window.scrollTo({ top: 0, behavior: 'smooth' }); $('#dc-m0').focus({ preventScroll: true }); return; }
   if (t.dataset.rm) { S.rmConfirm = t.dataset.rm; renderDrawer(); return; }
   if (t.dataset.rmNo) { S.rmConfirm = null; renderDrawer(); return; }
-  if (t.dataset.rmYes) { const id = t.dataset.rmYes; t.disabled = true; S.sb.rpc('delete_client', { p_client: id }).then(({ error }) => { if (error) { toast(friendly(error)); t.disabled = false; } else { closeDrawer(); toast('Client deleted'); refreshStaff(); } }); return; }
+  if (t.dataset.rmYes) { const id = t.dataset.rmYes; t.disabled = true; t.innerHTML = '<span class="spin"></span> Deleting…'; deleteClient(id).then((err) => { if (err) { toast(err); t.disabled = false; t.textContent = 'Delete for good'; } else { closeDrawer(); toast('Client deleted'); refreshStaff(); } }); return; }
 });
 $('#stabs').addEventListener('keydown', (e) => {
   if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
@@ -1732,7 +1808,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 function syncOnline() { $('#offline').hidden = navigator.onLine !== false; }
 window.addEventListener('online', () => { syncOnline(); refreshVisible(); });
 window.addEventListener('offline', syncOnline);
-setInterval(() => { if (document.visibilityState === 'visible' && isStaff()) refreshVisible(); }, 60000);
+setInterval(() => { if (document.visibilityState === 'visible' && isStaff()) refreshVisible(); }, 120000);
 
 /* card icons */
 const ICONS = { scale: 'M4 20h16M6 20l2-12h8l2 12M12 8V4M9 4h6', plate: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', drop: G.drop, run: 'M13 4a2 2 0 1 0 0 .1M7 21l3-6 3 2v4M10 15l1-5 3 2 3 1M8 11l3-1', leaf: G.leaf, target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', medal: 'M8 3l4 6 4-6M12 21a6 6 0 1 0 0-12 6 6 0 0 0 0 12z', trophy: 'M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 21h8', users: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM3 21c0-4 3-6 6-6s6 2 6 6M16 3.5a4 4 0 0 1 0 7.5M21 21c0-3-1.5-5-4-5.7', clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2', pulse: 'M3 12h4l2-5 4 10 2-5h6', chat: 'M4 5h16v11H9l-5 4z', check: 'M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9' };

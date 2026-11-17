@@ -271,6 +271,11 @@ body[data-ctab="home"] .diet-next,body:not([data-ctab="home"]) .home-only{displa
 #p-messages .card-h > span{flex-wrap:wrap}
 .fu{padding:14px 0}
 .fu-t strong{letter-spacing:-.01em}
+.fu-g{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:22px 0 2px}
+.fu-g:first-child{padding-top:2px}
+.fu-g .linkbtn{padding:0;font-size:13px;align-self:center;white-space:nowrap}
+.fu-g + .fu{padding-top:10px}
+#ci-list .linkbtn{display:block;padding:12px 0 0;font-size:13px}
 .ci-row{padding:10px 0}
 .ci-row .ok{color:var(--ok)}
 .tbl-wrap{margin:0 calc(-1*var(--pad))}
