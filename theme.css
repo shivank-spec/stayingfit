@@ -221,6 +221,9 @@ label.lbl,.lbl{font-size:13px;font-weight:700}
 .diet-dots i{height:7px;border-radius:999px}
 .diet-dots i.past{background:#a9d7e7}
 .diet-dots i.now{background:var(--brand)}
+.diet-next{margin-top:14px;padding-top:14px;border-top:1.5px dashed #cfdbe2}
+.diet-next > .eyebrow{display:block;color:var(--forest);margin-bottom:2px}
+body[data-ctab="home"] .diet-next,body:not([data-ctab="home"]) .home-only{display:none}
 .tmr{border-radius:14px}
 .tmr li::before{border-radius:50%;background:var(--brand)}
 

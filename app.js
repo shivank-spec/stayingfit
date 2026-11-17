@@ -221,7 +221,7 @@ function freshState() {
     me: null, weights: [], day: null, plan: null, board: [], photoUrls: {}, tests: [], reportUrls: {},
     threads: [], msgs: {}, openThread: null, dmId: null, kThread: null, pcs: [], zoom: null, pushOn: false, pushErr: '',
     clients: [], profiles: {}, allWeights: {}, days: {}, diets: {}, liq: {}, ticks: {}, allTests: {}, ibox: 'mine', kOpen: false, dietFor: null,
-    exType: 'Walk', q: '', pick: null, seen: {}, diet: null, liquids: [], ticked: new Set(), asstId: null, lb: 'loss', tier: 'All', cq: '', sortK: 'name', sortDir: 1, sel: null, drawer: null, drawerMode: null,
+    exType: 'Walk', q: '', pick: null, seen: {}, diet: null, dietNext: null, liquids: [], ticked: new Set(), asstId: null, lb: 'loss', tier: 'All', cq: '', sortK: 'name', sortDir: 1, sel: null, drawer: null, drawerMode: null,
     counted: {}, lvlSeen: null, chain: Promise.resolve(), lastGlass: -1, tab: null, cred: null, ctab: 'home', seenLoaded: false, notes: {}, noteDraft: null
   };
 }
@@ -230,6 +230,33 @@ const uidNow = () => (S.session && S.session.user.id) || '';
 const isCoach = () => S.role === 'coach';
 const isStaff = () => S.role === 'coach' || S.role === 'assistant';
 const fixErr = (r) => { if (r && r.error) throw r.error; return r; };
+/* ---------- the phone's back button ----------
+   The app is one page, so opening a tab, a profile, a photo, a chat or the account sheet adds a step to the browser's history.
+   Back then undoes the newest step instead of leaving the app. A step closed from inside the app is marked dead and skipped. */
+const NAV = [], NREF = {};
+let navHold = false, navUsed = false;
+try { history.replaceState({ sfi: 0 }, ''); } catch (e) {}
+function navPush(kind, undo) {
+  const cur = NREF[kind]; if (cur && !cur.dead) { cur.undo = undo; return; }
+  const top = NAV[NAV.length - 1], en = { kind, undo, dead: false };
+  try {
+    if (top && top.dead) { NAV[NAV.length - 1] = en; history.replaceState({ sfi: NAV.length }, ''); }
+    else { NAV.push(en); history.pushState({ sfi: NAV.length }, ''); }
+  } catch (e) { return; }
+  NREF[kind] = en; navUsed = true;
+}
+function navKill(kind) { const en = NREF[kind]; if (en) { en.dead = true; NREF[kind] = null; } }
+function navReset() { NAV.forEach((x) => { x.dead = true; }); Object.keys(NREF).forEach((k) => { NREF[k] = null; }); }
+window.addEventListener('popstate', (e) => {
+  if (navHold) { navHold = false; return; }
+  const i = Math.max(0, +((e.state && e.state.sfi) || 0));
+  if (i > NAV.length) { navHold = true; history.go(NAV.length - i); return; }   // Forward is not a thing here: step back to where the app is
+  let undone = 0;
+  while (NAV.length > i) { const en = NAV.pop(); if (en.dead) continue; en.dead = true; if (NREF[en.kind] === en) NREF[en.kind] = null; undone++; try { en.undo(); } catch (er) {} }
+  if (!undone && navUsed) history.back();   // that press only cleared closed screens, so keep going
+});
+/* on a phone an open chat fills the screen, so Back should return to the list of chats */
+function threadNav() { if (S.kOpen && window.matchMedia('(max-width: 860px)').matches) navPush('thread', () => { S.kOpen = false; renderInbox(); }); }
 async function allRows(make) { let out = [], from = 0; for (;;) { const r = fixErr(await make().range(from, from + 999)); const rows = r.data || []; out = out.concat(rows); if (rows.length < 1000 || from >= 99000) break; from += 1000; } return { data: out }; }
 const START_HTML = '<strong style="display:block;font:600 20px var(--display);color:var(--ink);margin-bottom:6px">Start by adding your first client</strong>You pick their username. The app makes a temporary password and a ready-to-send WhatsApp message.<br><br><button class="btn" type="button" data-first-client="1">Add your first client</button>';
 const msgTime = (iso) => { const d = new Date(iso), day = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); return (day === TODAY ? '' : fmtShort(day) + ', ') + d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase(); };
@@ -272,7 +299,7 @@ async function boot() {
 }
 function signedOut() {
   if (S.rt && S.sb) { try { S.sb.removeChannel(S.rt); } catch (e) {} }
-  S.rt = null; closeDrawer(); closeModal(); closeZoom(); forgetPush();
+  S.rt = null; closeDrawer(); closeModal(); closeZoom(); forgetPush(); navReset();
   Object.assign(S, freshState()); S.session = null;
   document.body.classList.remove('readonly'); delete document.body.dataset.ctab; delete document.body.dataset.stab; setBadge(0);
   ['#li-pw', '#np-user', '#np-old', '#np-new', '#np-new2'].forEach((s) => { $(s).value = ''; });
@@ -405,8 +432,8 @@ function showLoginForm(on) {
   if (on) { $('#pwm-user').value = S.profile.username; ['#pwm-old', '#pwm-new', '#pwm-new2'].forEach((x) => { $(x).value = ''; }); $('#pwm-user').focus(); }
 }
 function showInstall(on) { $('#me-inst').hidden = !on; $('#me-inst-btn').setAttribute('aria-expanded', String(on)); $('#me-inst-btn').textContent = on ? 'Hide' : 'How'; if (on) $('#me-inst').innerHTML = installHtml(); }
-function openModal() { if (!S.profile) return; $('#pw-modal').hidden = false; showLoginForm(false); showInstall(false); renderMe(); }
-function closeModal() { const m = $('#pw-modal'); if (m) m.hidden = true; }
+function openModal() { if (!S.profile) return; $('#pw-modal').hidden = false; showLoginForm(false); showInstall(false); renderMe(); navPush('modal', closeModal); }
+function closeModal() { const m = $('#pw-modal'); if (m) m.hidden = true; navKill('modal'); }
 function renderMe() {
   const p = S.profile; if (!p || $('#pw-modal').hidden) return;
   $('#me-av').textContent = initials(p.display_name); $('#pwm-h').textContent = p.display_name;
@@ -451,7 +478,7 @@ async function loadClient() {
   const [w, d, p, b, t, lq, tk] = await Promise.all([
     S.sb.from('weights').select('d,kg').eq('client_id', c.id).order('d'),
     S.sb.from('day_logs').select('*').eq('client_id', c.id).eq('d', TODAY).maybeSingle(),
-    S.sb.from('diets').select('id,start_date,meals,notes,morning,night').eq('client_id', c.id).lte('start_date', TODAY).order('start_date', { ascending: false }).limit(1),
+    S.sb.from('diets').select('id,start_date,meals,notes,morning,night,created_at').eq('client_id', c.id).order('start_date', { ascending: false }).limit(8),
     S.sb.rpc('leaderboard'),
     S.sb.from('blood_tests').select('*').eq('client_id', c.id).order('d'),
     S.sb.from('liquids').select('id,name,when_text,sort').eq('client_id', c.id).eq('active', true).order('sort'),
@@ -460,7 +487,7 @@ async function loadClient() {
   [w, d, p, b, t, lq, tk].forEach(fixErr);
   S.weights = (w.data || []).map((x) => ({ d: x.d, v: num(x.kg) }));
   S.day = d.data || emptyDay();
-  S.diet = (p.data || [])[0] || null;
+  { const ds = dietsOf(p.data); S.diet = ds.cur; S.dietNext = ds.next; }
   S.liquids = lq.data || []; S.ticked = new Set((tk.data || []).map((x) => x.liquid_id));
   S.board = b.data || [];
   S.tests = t.data || [];
@@ -514,6 +541,7 @@ function setCTab(id, focusId) {
   if (S.me && id === 'chat') { renderClientMsgs(); const th = $('#c-thread'); th.scrollTop = th.scrollHeight; }
   const el = focusId && document.getElementById(focusId), card = el && (el.closest('.card') || el);
   window.scrollTo({ top: card ? Math.max(card.getBoundingClientRect().top + window.scrollY - 76, 0) : 0 });
+  if (id === 'home') navKill('tab'); else navPush('tab', () => setCTab('home'));
 }
 async function openChat(tid) {
   if (tid && S.threads.find((x) => x.id === tid)) { S.openThread = tid; try { await loadMsgs(tid); } catch (e) { toast(friendly(e)); } }
@@ -617,15 +645,20 @@ function renderClient() {
   $('#ex-list').innerHTML = ex.map((e) => '<div class="list-row"><span style="flex:1">' + esc(e.type) + ' · ' + (+e.min) + ' min</span><span class="mono small muted">' + esc(e.t) + '</span></div>').join('') || '<div class="small muted">No workouts yet today. A 30-minute walk completes the challenge.</div>';
 
   // diet (a fresh one every 4 days) + tomorrow
-  const diet = S.diet, dn = diet ? diffDays(diet.start_date, TODAY) + 1 : 0;
-  $('#pl-eyebrow').textContent = !diet ? 'Your diet' : dn <= 4 ? 'Your diet · day ' + dn + ' of 4' : 'Your diet · new one due';
+  const diet = S.diet, nx = S.dietNext, shown = diet || nx, d1 = shown ? dietDay1(shown) : '', dn = diet ? diffDays(d1, TODAY) + 1 : 0;
+  const nxTxt = diet && nx ? 'Your next diet starts ' + startsTxt(nx) + '.<span class="home-only"> Open Diet to read it.</span>' : '';
+  $('#pl-eyebrow').textContent = !shown ? 'Your diet' : !diet ? 'Your diet · starts ' + startsTxt(nx) : dn <= 4 ? 'Your diet · day ' + dn + ' of 4' : 'Your diet · new one due';
   $('#pl-h').textContent = 'From ' + COACH;
-  $('#plan-today').innerHTML = diet ? dietHtml(diet, 96)
+  $('#plan-today').innerHTML = shown ? dietHtml(shown, 96)
     + '<div class="diet-foot"><span class="diet-dots" aria-hidden="true">' + [1, 2, 3, 4].map((k) => '<i class="' + (k < dn ? 'past' : k === dn ? 'now' : '') + '"></i>').join('') + '</span><span class="small">'
-    + (dn < 4 ? 'Follow this until ' + fmtDay(addDays(diet.start_date, 3)) + '. New diet from ' + fmtDay(addDays(diet.start_date, 4)) + '.' : dn === 4 ? 'Last day of this diet. Your new diet starts tomorrow.' : esc(COACH) + ' will send your next diet soon. Keep following this one until then.') + '</span></div>'
+    + (!diet ? 'Day 1 is ' + fmtDay(d1) + '. Follow it until ' + fmtDay(addDays(d1, 3)) + '.'
+      : dn < 4 ? 'Follow this until ' + fmtDay(addDays(d1, 3)) + '. ' + (nxTxt || 'New diet from ' + fmtDay(addDays(d1, 4)) + '.')
+      : dn === 4 ? 'Last day of this diet. ' + (nxTxt || esc(COACH) + ' will send your next one.')
+      : nxTxt ? nxTxt + ' Keep following this one until then.' : esc(COACH) + ' will send your next diet soon. Keep following this one until then.') + '</span></div>'
+    + (diet && nx ? '<div class="diet-next"><span class="eyebrow">Next diet · starts ' + esc(startsTxt(nx)) + '</span>' + dietHtml(nx, 96) + '</div>' : '')
     : '<div class="empty">' + esc(COACH) + ' hasn’t added your diet yet. It shows up here as soon as she does.</div>';
   const items = [];
-  if (diet && dn === 4) items.push('A new diet starts tomorrow');
+  if (nx && dietDay1(nx) === addDays(TODAY, 1)) items.push(diet ? 'A new diet starts tomorrow' : 'Your diet starts tomorrow');
   items.push('Weigh in to reach a ' + (logged ? streak + 1 : streak ? streak + 1 : 1) + '-day streak');
   const u = detoxUntil(c) - 1; if (u >= 0 && u <= 3) items.push(u === 0 ? 'Detox day tomorrow' : 'Detox in ' + (u + 1) + ' days');
   $('#tomorrow').innerHTML = '<div class="tmr"><span class="eyebrow">Coming up tomorrow</span><ul>' + items.map((i) => '<li>' + esc(i) + '</li>').join('') + '</ul></div>';
@@ -863,7 +896,7 @@ async function loadStaff() {
     S.sb.from('profiles').select('id,username,role,display_name,must_change_pw'),
     allRows(() => S.sb.from('weights').select('client_id,d,kg,at').gte('d', since).order('d').order('client_id')),
     S.sb.from('day_logs').select('*').eq('d', TODAY),
-    S.sb.from('diets').select('id,client_id,start_date,meals,notes,morning,night').order('start_date'),
+    S.sb.from('diets').select('id,client_id,start_date,meals,notes,morning,night,created_at').order('start_date'),
     S.sb.from('blood_tests').select('*').order('d'),
     S.sb.from('liquids').select('id,client_id,name,when_text,sort').eq('active', true).order('sort'),
     S.sb.from('liquid_ticks').select('client_id,liquid_id,at').eq('d', TODAY)
@@ -903,8 +936,17 @@ const teamThread = () => S.threads.find((t) => t.kind === 'team');
 /* who is on the other side of the team chat: the assistant for the coach, the coach for the assistant */
 const teamName = () => { const other = Object.values(S.profiles).filter((p) => p.role === (isCoach() ? 'assistant' : 'coach')); return other.length === 1 ? other[0].display_name : isCoach() ? (other.length ? 'Assistants' : 'Assistant') : COACH; };
 const threadName = (t) => (t.kind === 'team' ? teamName() : t.kind === 'family' ? t.title : ((S.clients.find((c) => c.id === t.client_id) || {}).name || t.title));
-const curDiet = (c) => { const a = (S.diets[c.id] || []).filter((x) => x.start_date <= TODAY); return a[a.length - 1] || null; };
-const dietDay = (dt) => diffDays(dt.start_date, TODAY) + 1;
+/* Day 1 of a diet is the day after it was sent, or the start date she picked if that is later: the day it is sent never counts */
+const dietDay1 = (d) => { const next = d.created_at ? addDays(isoDay(d.created_at), 1) : d.start_date; return d.start_date > next ? d.start_date : next; };
+/* out of a client's diets: the one being followed today, and the next one already sent */
+const dietsOf = (list) => {
+  const ds = (list || []).slice().sort((a, b) => (dietDay1(a) + (a.created_at || '')).localeCompare(dietDay1(b) + (b.created_at || ''))), up = ds.filter((x) => dietDay1(x) > TODAY);
+  return { cur: ds.filter((x) => dietDay1(x) <= TODAY).pop() || null, next: up.filter((x) => dietDay1(x) === dietDay1(up[0])).pop() || null };
+};
+const curDiet = (c) => dietsOf(S.diets[c.id]).cur;
+const nextDiet = (c) => dietsOf(S.diets[c.id]).next;
+const dietDay = (dt) => diffDays(dietDay1(dt), TODAY) + 1;
+const startsTxt = (dt) => (dietDay1(dt) === addDays(TODAY, 1) ? 'tomorrow' : fmtDay(dietDay1(dt)));
 const liqOf = (c) => S.liq[c.id] || [];
 const liqDone = (c) => { const T = S.ticks[c.id] || {}; return liqOf(c).filter((x) => T[x.id]).length; };
 const tmin = (t) => { const m = /^(\d+):(\d+)\s*(AM|PM)$/i.exec(String(t || '').trim()); if (!m) return -1; let h = +m[1] % 12; if (/pm/i.test(m[3])) h += 12; return h * 60 + +m[2]; };
@@ -928,6 +970,8 @@ function setTab(id) {
   const moved = S.tab !== id; S.tab = id; lsSet('sf-tab-' + S.role, id); document.body.dataset.stab = id;
   ['today', 'clients', 'messages', 'diet', 'plans'].forEach((k) => { $('#p-' + k).hidden = k !== id; });
   if (moved) window.scrollTo({ top: 0 });
+  if (moved && id !== 'messages' && S.kOpen) { S.kOpen = false; navKill('thread'); }
+  if (id === 'today') navKill('tab'); else navPush('tab', () => setTab('today'));
   document.querySelectorAll('#stabs .stab').forEach((b) => { const on = b.dataset.tab === id; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
   document.querySelectorAll('#sbar button').forEach((b) => b.classList.toggle('on', b.dataset.tab === id));
   if (id === 'messages') { const th = $('#k-thread'); th.scrollTop = th.scrollHeight; }
@@ -981,8 +1025,8 @@ async function loadComments() {
   const r = await S.sb.from('photo_comments').select('id,client_id,path,author,author_name,body,created_at').gte('created_at', new Date(Date.now() - 14 * 864e5).toISOString()).order('created_at');
   S.pcs = r.error ? (S.pcs || []) : (r.data || []);
 }
-function openZoom(path, cap) { S.zoom = { path, cap: cap || '' }; renderZoom(); }
-function closeZoom() { S.zoom = null; const z = $('#zoom'); if (z) z.remove(); }
+function openZoom(path, cap) { S.zoom = { path, cap: cap || '' }; renderZoom(); navPush('zoom', closeZoom); }
+function closeZoom() { S.zoom = null; const z = $('#zoom'); if (z) z.remove(); navKill('zoom'); }
 /* the photo opened large, with the team's comments; the team can add one */
 function renderZoom() {
   let z = $('#zoom'); if (!S.zoom) { if (z) z.remove(); return; }
@@ -1081,13 +1125,13 @@ async function openLink(h) {
   h = String(h || ''); if (!h) return;
   if (!S.session || !S.role || $('#app').hidden) { pendingLink = h; return; }
   pendingLink = null;
-  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  try { history.replaceState({ sfi: NAV.length }, '', location.pathname + location.search); } catch (e) {}
   const m = /^#chat=([0-9a-f-]{36})$/.exec(h);
   try {
     if (m) {
       await loadThreads(); const th = S.threads.find((x) => x.id === m[1]); if (!th) return;
       if (S.role === 'client') { await openChat(th.id); }
-      else { closeDrawer(); S.ibox = isCoach() && th.kind === 'asst' ? 'asst' : 'mine'; S.kThread = th.id; S.kOpen = true; setTab('messages'); await loadMsgs(th.id); renderInbox(); window.scrollTo({ top: 0 }); }
+      else { closeDrawer(); S.ibox = isCoach() && th.kind === 'asst' ? 'asst' : 'mine'; S.kThread = th.id; S.kOpen = true; setTab('messages'); threadNav(); await loadMsgs(th.id); renderInbox(); window.scrollTo({ top: 0 }); }
     } else if (h === '#photos' && S.role === 'client') { await refreshClient(); setCTab('track', 'cal-h'); const el = $('#pcs'); if (el && !el.hidden) el.scrollIntoView({ block: 'center' }); }
   } catch (e) { /* opening the app is enough */ }
 }
@@ -1143,10 +1187,11 @@ function buildTasks() {
     const dx = detoxUntil(c);
     if (dx <= 1) out.push({ p: dx < 0 ? 2 : 3, title: c.name + ': detox day ' + (dx < 0 ? 'overdue by ' + (-dx) + ' day' + (dx === -1 ? '' : 's') : dx === 0 ? 'today' : 'tomorrow'), sub: 'Every ' + c.detox_freq + ' days · ' + c.detox_done + ' done', acts: isCoach() ? [['Mark done', 'data-detox="' + esc(c.id) + '"', 'ghost']] : [['Message', 'data-msg-client="' + esc(c.id) + '" data-draft="detox"', 'ghost']] });
     if (c.consent_at) {
-      const dt = curDiet(c), dn = dt ? dietDay(dt) : 0, wd = [['Write diet', 'data-edit-plan="' + esc(c.id) + '"', 'ghost']];
-      if (isCoach() && !dt) out.push({ p: 2, title: c.name + ' has no diet yet', sub: 'Write their first 4-day diet', acts: wd });
-      else if (isCoach() && dn > 4) out.push({ p: 1, title: c.name + ' needs a new diet', sub: 'The last one ended ' + fmtDay(addDays(dt.start_date, 3)), acts: wd });
-      else if (isCoach() && dn === 4) out.push({ p: 3, title: c.name + '’s diet ends today', sub: 'The next one starts ' + fmtDay(addDays(dt.start_date, 4)), acts: wd });
+      const dt = curDiet(c), nx = nextDiet(c), dn = dt ? dietDay(dt) : 0, wd = [['Write diet', 'data-edit-plan="' + esc(c.id) + '"', 'ghost']];
+      if (nx) { /* the next diet is already sent */ }
+      else if (isCoach() && !dt) out.push({ p: 2, title: c.name + ' has no diet yet', sub: 'Write their first 4-day diet', acts: wd });
+      else if (isCoach() && dn > 4) out.push({ p: 1, title: c.name + ' needs a new diet', sub: 'The last one ended ' + fmtDay(addDays(dietDay1(dt), 3)), acts: wd });
+      else if (isCoach() && dn === 4) out.push({ p: 3, title: c.name + '’s diet ends today', sub: 'Send the next one today and it starts ' + fmtDay(addDays(TODAY, 1)), acts: wd });
       const L = liqOf(c).length, D = liqDone(c);
       if (L && D < L && hr >= 14) out.push({ p: 3, title: c.name + ' hasn’t ticked today’s liquids', sub: D + ' of ' + L + ' taken so far', acts: [['Message', 'data-msg-client="' + esc(c.id) + '" data-draft="liquids"', 'ghost']] });
       if (isCoach() && L && c.liquids_updated && diffDays(c.liquids_updated, TODAY) >= 30) out.push({ p: 3, title: c.name + '’s liquids list is a month old', sub: 'Last updated ' + fmtShort(c.liquids_updated), acts: [['Update list', 'data-pick="' + esc(c.id) + '" data-dmode="liquids"', 'ghost']] });
@@ -1244,8 +1289,9 @@ function openDrawer(id, mode) {
   if (!root) { root = document.createElement('div'); root.id = 'drawer-root'; document.body.appendChild(root); }
   root.innerHTML = '<div class="drawer-bg" data-close-drawer="1"></div><aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="dr-h" id="drawer-body"></aside>';
   renderDrawer(); const x = $('#dr-close'); if (x) x.focus();
+  navPush('drawer', closeDrawer);
 }
-function closeDrawer() { S.drawer = null; S.drawerMode = null; S.rmConfirm = null; S.dcred = null; const r = $('#drawer-root'); if (r) r.innerHTML = ''; }
+function closeDrawer() { S.drawer = null; S.drawerMode = null; S.rmConfirm = null; S.dcred = null; const r = $('#drawer-root'); if (r) r.innerHTML = ''; navKill('drawer'); }
 async function renderDrawer() {
   const body = $('#drawer-body'); if (!body) return;
   const c = S.clients.find((x) => x.id === S.drawer); if (!c) { closeDrawer(); return; }
@@ -1283,7 +1329,7 @@ async function renderDrawer() {
     + '<div class="card" style="padding:18px;gap:4px;animation:none"><span class="eyebrow">Last 7 days</span><div id="dr-log"><span class="small muted">Loading…</span></div></div>'
     + (ts.length ? '<div class="card" style="padding:18px;gap:12px;animation:none"><span class="eyebrow">Blood test · ' + fmtShort(ts[ts.length - 1].d) + '</span>' + testsHtml(ts, S.reportUrls) + '</div>' : (c.health_consent_at ? '' : '<div class="small muted">Blood tests: not shared yet.</div>'))
     + '<div class="card" style="padding:18px;gap:10px;animation:none"><span class="eyebrow">Meal photos · earlier this week</span><div id="dr-week"><span class="small muted">Loading…</span></div></div>'
-    + '<div class="card" style="padding:18px;gap:6px;animation:none"><div class="card-h"><span class="eyebrow">' + (dt ? (dn <= 4 ? 'Diet · day ' + dn + ' of 4' : 'Diet · new one due') : 'Diet') + '</span>' + (isCoach() ? '<button class="ghost" type="button" data-edit-plan="' + esc(c.id) + '">' + (dt ? 'Write new diet' : 'Write diet') + '</button>' : '') + '</div>' + (dt ? dietHtml(dt, 86) : '<span class="small muted">No diet yet.</span>') + '</div>'
+    + '<div class="card" style="padding:18px;gap:6px;animation:none"><div class="card-h"><span class="eyebrow">' + (dt ? (dn <= 4 ? 'Diet · day ' + dn + ' of 4' : 'Diet · new one due') : nextDiet(c) ? 'Diet · starts ' + startsTxt(nextDiet(c)) : 'Diet') + '</span>' + (isCoach() ? '<button class="ghost" type="button" data-edit-plan="' + esc(c.id) + '">' + (dt || nextDiet(c) ? 'Write new diet' : 'Write diet') + '</button>' : '') + '</div>' + (dt || nextDiet(c) ? dietHtml(dt || nextDiet(c), 86) + (dt && nextDiet(c) ? '<span class="small muted" style="padding-top:8px">The next diet is sent and starts ' + startsTxt(nextDiet(c)) + '.</span>' : '') : '<span class="small muted">No diet yet.</span>') + '</div>'
     + liquidsCard(c)
     + '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="eyebrow" style="width:100%">Badges</span>' + BADGES.map((b) => '<span style="display:flex;align-items:center;gap:6px" class="small"><svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true"><path ' + (bs[b.k] ? 'style="fill:' + b.fill + '"' : 'class="hex-l"') + ' d="' + HEX + '"/><g transform="translate(20 20)"><path class="gl' + (bs[b.k] ? ' on' : '') + '" d="' + b.g + '"/></g></svg>' + (bs[b.k] ? b.name : '<span class="muted">' + b.name + '</span>') + '</span>').join('') + '</div>'
     + '<div class="small">Plan ' + fmtShort(c.plan_start) + ' to ' + fmtDay(c.plan_end) + (planLeft(c) < 0 ? ' (ended)' : '') + ' · detox every ' + c.detox_freq + ' days · ' + c.kcal_target + ' kcal target</div>';
@@ -1391,7 +1437,7 @@ function renewalText(c) { const d = planLeft(c); return 'Hi ' + first(c.name) + 
 async function openClientChat(clientId, draft) {
   const r = await S.sb.rpc('ensure_chat', { p_client: clientId }); if (r.error) { toast(friendly(r.error)); return; }
   S.ibox = 'mine'; S.kThread = r.data; S.kOpen = true; await loadThreads(); await loadMsgs(S.kThread); closeDrawer();
-  setTab('messages'); renderInbox(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  setTab('messages'); threadNav(); renderInbox(); window.scrollTo({ top: 0, behavior: 'smooth' });
   if (draft != null) $('#k-comp-in').value = draft;
   $('#k-comp-in').focus({ preventScroll: true });
 }
@@ -1412,7 +1458,7 @@ $('#bc-form').addEventListener('submit', async (e) => {
   $('#bc-text').value = ''; closeBroadcast(); toast('Sent to ' + r.data + ' client' + (r.data === 1 ? '' : 's'));
   await loadThreads(); await loadMsgs(S.kThread); renderStaff();
 });
-$('#ib-back').addEventListener('click', () => { S.kOpen = false; renderInbox(); });
+$('#ib-back').addEventListener('click', () => { S.kOpen = false; navKill('thread'); renderInbox(); });
 $('#k-comp').addEventListener('submit', async (e) => {
   e.preventDefault(); const v = $('#k-comp-in').value.trim(); if (!v || !S.kThread) return;
   $('#k-comp-in').value = '';
@@ -1435,8 +1481,9 @@ $('#grp-form').addEventListener('submit', async (e) => {
 
 /* diets: the coach writes a fresh one for each client every 4 days */
 function dietStatus(c) {
-  const dt = curDiet(c); if (!dt) return ['over', 'No diet yet', 0];
+  const dt = curDiet(c), nx = nextDiet(c); if (!dt) return nx ? ['ok', 'Starts ' + startsTxt(nx), 3] : ['over', 'No diet yet', 0];
   const dn = dietDay(dt);
+  if (nx && dn >= 4) return ['ok', 'Next starts ' + startsTxt(nx), 3];
   return dn > 4 ? ['over', 'Due ' + (dn - 4) + (dn - 4 === 1 ? ' day ago' : ' days ago'), 1] : dn === 4 ? ['soon', 'Ends today', 2] : ['ok', 'Day ' + dn + ' of 4', 3];
 }
 function fillDiet(dt) { const m = dietMeals(dt); [0, 1, 2, 3, 4].forEach((i) => { $('#dc-m' + i).value = m[i] || ''; }); $('#dc-notes').value = dt.notes || ''; $('#dc-am').value = dt.morning || ''; $('#dc-pm').value = dt.night || ''; }
@@ -1452,20 +1499,22 @@ function renderDiet() {
   $('#dc-form').hidden = !sc;
   if (!sc) { $('#dc-h').textContent = 'Diet'; $('#dc-eyebrow').textContent = 'Diet'; $('#dc-current').innerHTML = '<div class="empty">Add a client to write their diet.</div>'; $('#dc-history').innerHTML = ''; return; }
   dsel.value = sc.id;
-  const all = S.diets[sc.id] || [], dt = curDiet(sc), dn = dt ? dietDay(dt) : 0, st = dietStatus(sc);
+  const all = S.diets[sc.id] || [], dt = curDiet(sc), nx = nextDiet(sc), dn = dt ? dietDay(dt) : 0, st = dietStatus(sc), span = (x) => fmtDay(dietDay1(x)) + ' to ' + fmtDay(addDays(dietDay1(x), 3));
   $('#dc-h').textContent = sc.name; $('#dc-eyebrow').textContent = 'Diet · ' + st[1];
-  $('#dc-current').innerHTML = dt ? '<div class="notice" style="margin-bottom:6px"><strong>' + (dn <= 4 ? 'Current diet' : 'Last diet') + '</strong> · ' + fmtDay(dt.start_date) + ' to ' + fmtDay(addDays(dt.start_date, 3)) + (dn > 4 ? ' · ' + esc(first(sc.name)) + ' is still following this until you send a new one' : '') + '</div>' + dietHtml(dt, 96)
-    : '<div class="empty">' + esc(first(sc.name)) + ' has no diet yet. Write the first one below.</div>';
+  $('#dc-current').innerHTML = (dt ? '<div class="notice" style="margin-bottom:6px"><strong>' + (dn <= 4 ? 'Current diet' : 'Last diet') + '</strong> · ' + span(dt) + (dn > 4 && !nx ? ' · ' + esc(first(sc.name)) + ' is still following this until you send a new one' : '') + '</div>' + dietHtml(dt, 96) : '')
+    + (nx ? '<div class="notice" style="margin:' + (dt ? 16 : 0) + 'px 0 6px"><strong>' + (dt ? 'Next diet' : 'New diet') + '</strong> · ' + span(nx) + ' · sent, ' + esc(first(sc.name)) + ' can already see it</div>' + dietHtml(nx, 96) : '')
+    || '<div class="empty">' + esc(first(sc.name)) + ' has no diet yet. Write the first one below.</div>';
   if (S.dietFor !== sc.id) {
     S.dietFor = sc.id; fillDiet({ meals: [], notes: '' }); $('#dc-err').hidden = true;
-    $('#dc-start').value = dt && dn <= 4 ? addDays(dt.start_date, 4) : TODAY;
+    const tmr = addDays(TODAY, 1), after = nx ? addDays(dietDay1(nx), 4) : dt && dn <= 4 ? addDays(dietDay1(dt), 4) : tmr;
+    $('#dc-start').value = after > tmr ? after : tmr;
   }
   $('#dc-form-h').textContent = 'New diet for ' + first(sc.name);
   $('#dc-copy').hidden = !all.length;
   const others = cs.filter((c) => c.id !== sc.id && (S.diets[c.id] || []).length), fsel = $('#dc-from'), fo = '<option value="">Copy from another client…</option>' + others.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('');
   fsel.hidden = !others.length; if (fsel.dataset.sig !== fo) { fsel.innerHTML = fo; fsel.dataset.sig = fo; }
   const past = all.slice().reverse().slice(0, 6);
-  $('#dc-history').innerHTML = past.length ? '<span class="eyebrow" style="display:block;margin-bottom:4px">Diets sent to ' + esc(first(sc.name)) + '</span>' + past.map((x) => '<div class="dc-hist"><span style="min-width:0;display:flex;flex-direction:column"><strong style="font-size:14px">' + fmtDay(x.start_date) + ' to ' + fmtDay(addDays(x.start_date, 3)) + (x.start_date > TODAY ? ' · upcoming' : '') + '</strong><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc([x.morning].concat(dietMeals(x), [x.night]).filter(Boolean).join(' · ')) + '</span></span><span style="display:flex;gap:6px"><button class="ghost" type="button" data-diet-reuse="' + esc(x.id) + '">Reuse</button><button class="ghost danger" type="button" data-diet-del="' + esc(x.id) + '">Delete</button></span></div>').join('') : '';
+  $('#dc-history').innerHTML = past.length ? '<span class="eyebrow" style="display:block;margin-bottom:4px">Diets sent to ' + esc(first(sc.name)) + '</span>' + past.map((x) => '<div class="dc-hist"><span style="min-width:0;display:flex;flex-direction:column"><strong style="font-size:14px">' + span(x) + (dietDay1(x) > TODAY ? ' · upcoming' : '') + '</strong><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc([x.morning].concat(dietMeals(x), [x.night]).filter(Boolean).join(' · ')) + '</span></span><span style="display:flex;gap:6px"><button class="ghost" type="button" data-diet-reuse="' + esc(x.id) + '">Reuse</button><button class="ghost danger" type="button" data-diet-del="' + esc(x.id) + '">Delete</button></span></div>').join('') : '';
 }
 $('#dc-client').addEventListener('change', (e) => { S.sel = e.target.value; S.dietFor = null; renderDiet(); });
 $('#dc-copy').addEventListener('click', () => { const all = S.diets[S.sel] || []; if (all.length) { fillDiet(all[all.length - 1]); $('#dc-m0').focus(); } });
@@ -1610,7 +1659,7 @@ document.addEventListener('click', (e) => {
   if (!isStaff()) return;
   // staff
   if (t.dataset.tab && !t.dataset.go) { setTab(t.dataset.tab); return; }
-  if (t.dataset.kth) { S.kThread = t.dataset.kth; S.kOpen = true; if (t.dataset.go) { S.ibox = 'mine'; setTab(t.dataset.go); } loadMsgs(S.kThread).then(() => { renderInbox(); if (t.dataset.go) window.scrollTo({ top: 0, behavior: 'smooth' }); }).catch((er) => toast(friendly(er))); return; }
+  if (t.dataset.kth) { S.kThread = t.dataset.kth; S.kOpen = true; if (t.dataset.go) { S.ibox = 'mine'; setTab(t.dataset.go); } threadNav(); loadMsgs(S.kThread).then(() => { renderInbox(); if (t.dataset.go) window.scrollTo({ top: 0, behavior: 'smooth' }); }).catch((er) => toast(friendly(er))); return; }
   if (t.dataset.doneThread) { S.sb.rpc('mark_thread_done', { p_thread: t.dataset.doneThread }).then(async (r) => { if (r.error) { toast(friendly(r.error)); return; } await loadThreads(); renderStaff(); toast('Marked as done'); }); return; }
   if (t.dataset.msgClient) { const c = S.clients.find((x) => x.id === t.dataset.msgClient); const dr = t.dataset.draft && DRAFTS[t.dataset.draft]; openClientChat(t.dataset.msgClient, c ? (dr ? dr(c) : 'Hi ' + first(c.name) + ', ') : ''); return; }
   if (t.dataset.remind) {
@@ -1627,7 +1676,7 @@ document.addEventListener('click', (e) => {
   if (t.dataset.sort) { const k = t.dataset.sort; if (S.sortK === k) S.sortDir = -S.sortDir; else { S.sortK = k; S.sortDir = (k === 'name' || k === 'last' || k === 'end') ? 1 : -1; } renderClientsTable(); return; }
   if (t.dataset.pick) { openDrawer(t.dataset.pick, t.dataset.dmode || null); return; }
   if (t.dataset.closeDrawer) { closeDrawer(); return; }
-  if (t.dataset.ibox) { S.ibox = t.dataset.ibox; S.kOpen = false; const m = inboxThreads(); S.kThread = (m.find(needsMe) || m[0] || {}).id || null; loadMsgs(S.kThread).then(renderInbox).catch((er) => toast(friendly(er))); return; }
+  if (t.dataset.ibox) { S.ibox = t.dataset.ibox; S.kOpen = false; navKill('thread'); const m = inboxThreads(); S.kThread = (m.find(needsMe) || m[0] || {}).id || null; loadMsgs(S.kThread).then(renderInbox).catch((er) => toast(friendly(er))); return; }
   if (t.dataset.openBc) { openBroadcast(); return; }
   if (t.dataset.lqRm) { const row = t.closest('.lq-row'); if (row) row.remove(); return; }
   if (t.dataset.dietClient) { S.sel = t.dataset.dietClient; S.dietFor = null; renderDiet(); return; }

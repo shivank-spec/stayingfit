@@ -18,7 +18,7 @@
 <link rel="preload" href="fonts/pjs.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="app.css?v=6">
-<link rel="stylesheet" href="theme.css?v=1">
+<link rel="stylesheet" href="theme.css?v=2">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><clipPath id="gclip"><path d="M6 4 H54 L48 84 H12 Z"></path></clipPath></defs></svg>
@@ -411,7 +411,7 @@
         <div id="dc-current"></div>
         <form id="dc-form" class="dc-form" novalidate>
           <div class="card-h"><strong id="dc-form-h">New diet</strong><span class="dc-tools"><select class="select" id="dc-from" aria-label="Copy a diet from another client"></select><button class="ghost" type="button" id="dc-copy">Start from the last diet</button></span></div>
-          <div class="field" style="max-width:220px"><label class="lbl" for="dc-start">Starts on</label><input class="input" id="dc-start" type="date"></div>
+          <div class="field"><label class="lbl" for="dc-start">Day 1 (the first day to follow it)</label><input class="input" id="dc-start" type="date" style="max-width:220px"><span class="small muted">The day you send a diet is not counted, so Day 1 is tomorrow at the earliest. The client can read it straight away.</span></div>
           <div class="field"><label class="lbl" for="dc-am">Morning message (shown above breakfast)</label><textarea class="ta" id="dc-am" maxlength="400" rows="2" placeholder="e.g. Start with warm jeera water and a 20-minute walk."></textarea></div>
           <div class="dc-meals">
             <div class="field"><label class="lbl" for="dc-m0">Breakfast</label><textarea class="ta" id="dc-m0" maxlength="400" rows="3"></textarea></div>
@@ -483,6 +483,6 @@
 
 <script src="config.js"></script>
 <script src="supabase-2.117.2.js"></script>
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
