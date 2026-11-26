@@ -817,7 +817,7 @@ create or replace function public.save_diet(p_client uuid, p_start date, p_meals
 language plpgsql security definer set search_path = public as $$
 declare did uuid; t date := public.today_ist(); m jsonb;
 begin
-  if not public.is_coach() then raise exception 'Only the coach can write diets'; end if;
+  if not public.is_staff() then raise exception 'Only the team can write diets'; end if;
   if not exists (select 1 from public.clients where id = p_client) then raise exception 'Client not found'; end if;
   if p_start is null or p_start < t - 60 or p_start > t + 30 then raise exception 'Pick a start date close to today'; end if;
   if p_meals is null or jsonb_typeof(p_meals) <> 'array' or jsonb_array_length(p_meals) not between 4 and 5 then raise exception 'A diet has five meals'; end if;
@@ -832,7 +832,7 @@ end $$;
 create or replace function public.delete_diet(p_id uuid) returns void
 language plpgsql security definer set search_path = public as $$
 begin
-  if not public.is_coach() then raise exception 'Only the coach can delete diets'; end if;
+  if not public.is_staff() then raise exception 'Only the team can delete diets'; end if;
   delete from public.diets where id = p_id;
 end $$;
 
@@ -1211,7 +1211,7 @@ create or replace function public.save_diet(p_client uuid, p_start date, p_meals
 language plpgsql security definer set search_path = public as $$
 declare did uuid; t date := public.today_ist(); m jsonb;
 begin
-  if not public.is_coach() then raise exception 'Only the coach can write diets'; end if;
+  if not public.is_staff() then raise exception 'Only the team can write diets'; end if;
   if not exists (select 1 from public.clients where id = p_client) then raise exception 'Client not found'; end if;
   if p_start is null or p_start < t - 60 or p_start > t + 30 then raise exception 'Pick a start date close to today'; end if;
   if p_meals is null or jsonb_typeof(p_meals) <> 'array' or jsonb_array_length(p_meals) not between 4 and 5 then raise exception 'A diet has five meals'; end if;

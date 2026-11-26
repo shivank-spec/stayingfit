@@ -1000,14 +1000,14 @@ async function coachUpdate(id, patch, msg) {
 }
 
 function staffTabs() {
-  const t = [['today', isCoach() ? 'Today' : 'Follow-ups'], ['clients', 'Clients'], ['messages', 'Messages'], ['plans', 'Renewals & detox']];
-  if (isCoach()) t.splice(3, 0, ['diet', 'Diet plans']);
+  const t = [['today', isCoach() ? 'Today' : 'Follow-ups'], ['weighins', 'Weigh-ins'], ['clients', 'Clients'], ['messages', 'Messages'], ['plans', 'Renewals & detox']];
+  if (isStaff()) t.splice(4, 0, ['diet', 'Diet plans']);
   return t;
 }
 function setTab(id) {
   if (!staffTabs().some((t) => t[0] === id)) id = 'today';
   const moved = S.tab !== id; S.tab = id; lsSet('sf-tab-' + S.role, id); document.body.dataset.stab = id;
-  ['today', 'clients', 'messages', 'diet', 'plans'].forEach((k) => { $('#p-' + k).hidden = k !== id; });
+  ['today', 'weighins', 'clients', 'messages', 'diet', 'plans'].forEach((k) => { $('#p-' + k).hidden = k !== id; });
   if (moved) window.scrollTo({ top: 0 });
   if (moved && id !== 'messages' && S.kOpen) { S.kOpen = false; navKill('thread'); }
   if (id === 'today') navKill('tab'); else navPush('tab', () => setTab('today'));
@@ -1024,23 +1024,24 @@ function renderStaff() {
   $('#k-line').textContent = !n ? 'No clients yet. Open Clients and tap Add client to create the first login.'
     : (tasks.length ? tasks.length + ' thing' + (tasks.length > 1 ? 's' : '') + ' need' + (tasks.length > 1 ? '' : 's') + ' attention today. ' : 'Nothing needs attention right now. ') + logged + ' of ' + n + ' clients have weighed in.';
   const avgLoss = n ? cs.reduce((a, c) => a + lossPctOf(c, wsOf(c)), 0) / n : 0;
-  $('#kpis').innerHTML = [['clients', n, 'clients', ''], ['today', logged + '/' + n, 'weighed in today', ''], ['messages', waiting, 'waiting for a reply', waiting ? 'warm' : ''], ['', avgLoss.toFixed(1) + '%', 'avg lost since start', '']]
-    .map((k) => (k[0] ? '<button class="kpi" type="button" data-tab="' + k[0] + '">' : '<div class="kpi">') + '<strong class="num ' + k[3] + '">' + k[1] + '</strong><span class="small muted">' + k[2] + '</span>' + (k[0] ? '</button>' : '</div>')).join('');
+  // every card is a button that opens its page: weigh-ins, messages, clients (sorted by loss for "avg lost")
+  $('#kpis').innerHTML = [['clients', n, 'clients', '', 'data-tab="clients"'], ['weighins', logged + '/' + n, 'weighed in today', '', 'data-tab="weighins"'], ['messages', waiting, 'waiting for a reply', waiting ? 'warm' : '', 'data-tab="messages"'], ['loss', avgLoss.toFixed(1) + '%', 'avg lost since start', '', 'data-kpi-sort="loss"']]
+    .map((k) => '<button class="kpi" type="button" ' + k[4] + ' aria-label="' + esc(k[2]) + ': ' + esc(String(k[1])) + '. Open"><strong class="num ' + k[3] + '">' + k[1] + '</strong><span class="small muted">' + k[2] + '</span></button>').join('');
   const counts = { today: tasks.length, messages: waiting };
   $('#stabs').innerHTML = staffTabs().map((t) => '<button class="stab" type="button" role="tab" id="t-' + t[0] + '" aria-controls="p-' + t[0] + '" data-tab="' + t[0] + '">' + t[1] + (counts[t[0]] ? '<span class="cnt">' + counts[t[0]] + '</span>' : '') + '</button>').join('');
-  const SB = { today: ['M3 11l9-7 9 7v9H3z', isCoach() ? 'Today' : 'Tasks'], clients: [ICONS.users, 'Clients'], messages: [ICONS.chat, 'Chat'], diet: [G.leaf, 'Diets'], plans: [ICONS.clock, 'Plans'] };
+  const SB = { today: ['M3 11l9-7 9 7v9H3z', isCoach() ? 'Today' : 'Tasks'], weighins: [ICONS.scale, 'Weigh-ins'], clients: [ICONS.users, 'Clients'], messages: [ICONS.chat, 'Chat'], diet: [G.leaf, 'Diets'], plans: [ICONS.clock, 'Plans'] };
   $('#sbar').innerHTML = staffTabs().map((t) => '<button type="button" data-tab="' + t[0] + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="' + SB[t[0]][0] + '"/></svg>' + SB[t[0]][1] + (counts[t[0]] ? '<span class="cnt">' + counts[t[0]] + '</span>' : '') + '</button>').join('');
   setTab(S.tab || 'today');
   renderTasks(tasks); renderCheckins(); renderQuick(); renderPhotos(); renderWeek(); renderActivity(); renderW7();
   renderClientsTable(); renderInbox(); renderGroupPeople();
-  if (isCoach()) renderDiet();
+  if (isStaff()) renderDiet();
   renderPlans(); paintUnread();
 }
 function renderQuick() {
-  $('#k-quick').innerHTML = '<button class="btn" type="button" data-first-client="1">Add client</button>'
-    + '<button class="ghost" type="button" data-open-bc="1">Broadcast a message</button>'
-    + (isCoach() ? '<button class="ghost" type="button" data-tab="diet">Write a diet</button>' : '<button class="ghost" type="button" data-tab="messages">Open inbox</button>')
-    + (teamThread() ? '<button class="ghost" type="button" data-kth="' + esc(teamThread().id) + '" data-go="messages">Message ' + esc(isCoach() ? 'the assistant' : teamName()) + '</button>' : '');
+  $('#k-quick').innerHTML = '<button class="btn" type="button" data-first-client="1">' + qIco('users') + 'Add client</button>'
+    + '<button class="ghost" type="button" data-open-bc="1">' + qIco('chat') + 'Broadcast a message</button>'
+    + (isStaff() ? '<button class="ghost" type="button" data-tab="diet">' + qIco('plate') + 'Write a diet</button>' : '<button class="ghost" type="button" data-tab="messages">' + qIco('chat') + 'Open inbox</button>')
+    + (teamThread() ? '<button class="ghost" type="button" data-kth="' + esc(teamThread().id) + '" data-go="messages">' + qIco('chat') + 'Message ' + esc(isCoach() ? 'the assistant' : teamName()) + '</button>' : '');
 }
 /* every meal photo sent today, across all clients */
 async function renderPhotos() {
@@ -1263,15 +1264,29 @@ function renderTasks(tasks) {
   $('#tasks').innerHTML = tasks.length ? tasksHtml(tasks, row)
     : '<div class="empty">' + (S.clients.length ? 'All clear. Nobody needs a follow-up right now.' : (isCoach() ? START_HTML : 'Follow-ups appear here once ' + esc(COACH) + ' adds clients.')) + '</div>';
 }
+function ciRow(c) {
+  const d = S.days[c.id], ok = c.last_log_date === TODAY;
+  return '<button class="ci-row" type="button" data-pick="' + esc(c.id) + '" style="width:100%;text-align:left;background:none;border:0;font:inherit;color:inherit;cursor:pointer"><span class="avatar">' + esc(initials(c.name)) + '</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(c.name) + '</span><span class="small ' + (ok ? 'ok' : 'no') + '">' + (ok ? 'Weighed in' : 'Not yet') + (d ? ' · ' + (d.water || 0) + '/10 water' : '') + '</span></button>';
+}
 function renderCheckins() {
   const cs = S.clients, n = cs.length, done = cs.filter((c) => c.last_log_date === TODAY);
   $('#ci-h').textContent = n ? done.length + ' of ' + n + ' weighed in' : 'Weigh-ins';
   $('#ci-fill').style.width = n ? (done.length / n * 100).toFixed(1) + '%' : '0%';
   const rows = cs.slice().sort((a, b) => (b.last_log_date === TODAY) - (a.last_log_date === TODAY) || a.name.localeCompare(b.name));
   const few = n > 10 && !S.ciAll;
-  $('#ci-list').innerHTML = n ? (few ? rows.slice(0, 8) : rows).map((c) => { const d = S.days[c.id], ok = c.last_log_date === TODAY;
-    return '<div class="ci-row"><span class="avatar">' + esc(initials(c.name)) + '</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(c.name) + '</span><span class="small ' + (ok ? 'ok' : 'no') + '">' + (ok ? 'Weighed in' : 'Not yet') + (d ? ' · ' + (d.water || 0) + '/10 water' : '') + '</span></div>'; }).join('') + (n > 10 ? '<button class="linkbtn" type="button" data-ci-all="1" aria-expanded="' + !few + '">' + (few ? 'Show all ' + n : 'Show fewer') + '</button>' : '')
+  $('#ci-list').innerHTML = n ? (few ? rows.slice(0, 8) : rows).map(ciRow).join('') + (n > 10 ? '<button class="linkbtn" type="button" data-ci-all="1" aria-expanded="' + !few + '">' + (few ? 'Show all ' + n : 'Show fewer') + '</button>' : '')
     : '<div class="small muted">No clients yet.</div>';
+  renderWeighins();
+}
+// the full weigh-in page: everyone who has weighed in today first, then who has not; each row opens the client
+function renderWeighins() {
+  const cs = S.clients, n = cs.length, done = cs.filter((c) => c.last_log_date === TODAY), todo = cs.filter((c) => c.last_log_date !== TODAY);
+  $('#wi-count').textContent = n ? done.length + ' of ' + n + ' weighed in' : '';
+  $('#wi-fill').style.width = n ? (done.length / n * 100).toFixed(1) + '%' : '0%';
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  $('#wi-list').innerHTML = !n ? '<div class="small muted">No clients yet.</div>'
+    : '<span class="eyebrow" style="display:block;margin:8px 0 4px">Weighed in (' + done.length + ')</span>' + (done.length ? done.sort(byName).map(ciRow).join('') : '<div class="small muted" style="padding:8px 0">Nobody yet today.</div>')
+    + '<span class="eyebrow" style="display:block;margin:16px 0 4px">Not yet (' + todo.length + ')</span>' + (todo.length ? todo.sort(byName).map(ciRow).join('') : '<div class="small muted" style="padding:8px 0">Everyone has weighed in.</div>');
 }
 
 /* clients table */
@@ -1364,6 +1379,46 @@ function openDrawer(id, mode) {
   navPush('drawer', closeDrawer);
 }
 function closeDrawer() { S.drawer = null; S.drawerMode = null; S.rmConfirm = null; S.dcred = null; const r = $('#drawer-root'); if (r) r.innerHTML = ''; navKill('drawer'); }
+/* small icon for the quick-action buttons (uses the shared ICONS paths) */
+const qIco = (k) => ICONS[k] ? '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="flex:none"><path class="ic" style="stroke-width:2" d="' + ICONS[k] + '"/></svg>' : '';
+/* staff: add a blood-test report for a client (same fields as the client's own form) */
+function sbtBlock(c) {
+  if (S.sbtOpen !== c.id) return '<button class="ghost" type="button" data-sbt="1" style="height:44px;align-self:flex-start">+ Add blood test report</button>';
+  return '<form class="card" id="sbt-form" data-for="' + esc(c.id) + '" style="padding:18px;gap:10px;animation:none" novalidate><span class="eyebrow">Add blood test · ' + esc(first(c.name)) + '</span>'
+    + '<div class="field"><label class="lbl" for="sbt-d">Test date</label><input class="input" id="sbt-d" type="date" max="' + TODAY + '"></div>'
+    + '<div class="field"><label class="lbl" for="sbt-a">HbA1c (%)</label><input class="input num" id="sbt-a" type="number" step="0.1" inputmode="decimal"></div>'
+    + '<div class="field"><label class="lbl" for="sbt-l">LDL</label><input class="input num" id="sbt-l" type="number" inputmode="numeric"></div>'
+    + '<div class="field"><label class="lbl" for="sbt-hd">HDL</label><input class="input num" id="sbt-hd" type="number" inputmode="numeric"></div>'
+    + '<div class="field"><label class="lbl" for="sbt-t">Triglycerides</label><input class="input num" id="sbt-t" type="number" inputmode="numeric"></div>'
+    + '<label class="ghost filebtn" style="height:44px;justify-content:center"><span>Attach report (photo or PDF)</span><input type="file" id="sbt-file" accept="image/jpeg,image/png,image/webp,image/heic,application/pdf"></label>'
+    + '<div class="err" id="sbt-err" role="alert" hidden></div>'
+    + '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" type="submit">Save report</button><button class="ghost" type="button" data-sbt="1" style="height:44px">Cancel</button></div></form>';
+}
+document.addEventListener('submit', (e) => {
+  if (e.target.id !== 'sbt-form') return;
+  e.preventDefault();
+  const cid = e.target.dataset.for, err = $('#sbt-err'), fail = (m) => { err.textContent = m; err.hidden = false; };
+  const d = $('#sbt-d').value, num = (id) => { const v = $(id).value.trim(); return v === '' ? null : +v; };
+  const row = { hba1c: num('#sbt-a'), ldl: num('#sbt-l'), hdl: num('#sbt-hd'), tg: num('#sbt-t') }, file = $('#sbt-file').files[0] || null;
+  if (!d) return fail('Pick the test date.');
+  if (d > TODAY) return fail('The test date can’t be in the future.');
+  if (row.hba1c == null && row.ldl == null && row.hdl == null && row.tg == null && !file) return fail('Enter at least one result or attach the report.');
+  if (file && file.size > 10 * 1024 * 1024) return fail('That file is over 10 MB. Try a photo of the report instead.');
+  if (file && !/^(image\/(jpeg|png|webp|heic)|application\/pdf)$/.test(file.type)) return fail('Attach a photo (JPG or PNG) or a PDF.');
+  err.hidden = true;
+  queue(async () => {
+    let path = null;
+    if (file) {
+      path = cid + '/' + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)) + '-' + file.name.replace(/[^A-Za-z0-9._-]+/g, '_').slice(-60);
+      const up = await S.sb.storage.from('reports').upload(path, file, { contentType: file.type });
+      if (up.error) return fail(friendly(up.error));
+    }
+    const r = await S.sb.rpc('staff_add_blood_test', { p_client: cid, p_d: d, p_hba1c: row.hba1c, p_ldl: row.ldl, p_hdl: row.hdl, p_tg: row.tg, p_file: path });
+    if (r.error) return fail(friendly(r.error));
+    S.sbtOpen = null; toast('Blood test saved'); await refreshStaff(); renderDrawer();
+  });
+});
+
 async function renderDrawer() {
   const body = $('#drawer-body'); if (!body) return;
   const c = S.clients.find((x) => x.id === S.drawer); if (!c) { closeDrawer(); return; }
@@ -1376,8 +1431,8 @@ async function renderDrawer() {
     + '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px"><h2 id="dr-h" style="font-size:26px">' + esc(c.name) + '</h2><span style="display:flex;gap:8px;flex-wrap:wrap"><span class="tag ' + tierCls(c.tier) + '">' + esc(c.tier) + '</span><span class="tag ' + (ago >= 2 ? 'danger' : '') + '">' + (ago === 0 ? 'Weighed in today' : ago === 1 ? 'Last weigh-in yesterday' : ago > 900 ? 'No weigh-ins yet' : 'Quiet for ' + ago + ' days') + '</span></span><span class="small muted">@' + esc(pr.username || '') + (!c.consent_at ? ' · hasn’t signed in yet' : pr.must_change_pw ? ' · still on a temporary password' : '') + '</span></div>'
     + '<button class="x" id="dr-close" type="button" data-close-drawer="1" aria-label="Close profile"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M6 6l12 12M18 6L6 18"/></svg></button></div>';
   h += '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" type="button" data-msg-client="' + esc(c.id) + '">Message ' + esc(first(c.name)) + '</button>'
-    + (isCoach() ? '<button class="ghost" style="height:44px" type="button" data-dmode="edit" data-for="' + esc(c.id) + '">Edit details</button><button class="ghost" style="height:44px" type="button" data-edit-plan="' + esc(c.id) + '">Diet plan</button><button class="ghost" style="height:44px" type="button" data-dmode="reset" data-for="' + esc(c.id) + '">Reset password</button>' : '') + '</div>';
-  if (isCoach() && mode === 'edit') {
+    + (isStaff() ? '<button class="ghost" style="height:44px" type="button" data-dmode="edit" data-for="' + esc(c.id) + '">Edit details</button>' : '') + (isStaff() ? '<button class="ghost" style="height:44px" type="button" data-edit-plan="' + esc(c.id) + '">Diet plan</button>' : '') + (isCoach() ? '<button class="ghost" style="height:44px" type="button" data-dmode="reset" data-for="' + esc(c.id) + '">Reset password</button>' : '') + '</div>';
+  if (isStaff() && mode === 'edit') {
     h += '<form class="card dform" id="dr-edit" style="padding:16px;animation:none" novalidate><span class="eyebrow" style="grid-column:1/-1">Edit details</span>'
       + '<div class="field" style="grid-column:1/-1"><label class="lbl" for="de-name">Name</label><input class="input" id="de-name" maxlength="80" value="' + esc(c.name) + '"></div>'
       + '<div class="field"><label class="lbl" for="de-goal">Goal (kg)</label><input class="input num" id="de-goal" type="number" step="0.1" value="' + (c.goal_kg == null ? '' : num(c.goal_kg)) + '"></div>'
@@ -1400,12 +1455,13 @@ async function renderDrawer() {
     + ((d.photos || []).length ? '<div class="photos big">' + d.photos.map((ph) => photoFig(ph, c.name + ' · ' + ph.t, ph.t)).join('') + '</div>' : '') + '</div>'
     + '<div class="card" style="padding:18px;gap:4px;animation:none"><span class="eyebrow">Last 7 days</span><div id="dr-log"><span class="small muted">Loading…</span></div></div>'
     + (ts.length ? '<div class="card" style="padding:18px;gap:12px;animation:none"><span class="eyebrow">Blood test · ' + fmtShort(ts[ts.length - 1].d) + '</span>' + testsHtml(ts, S.reportUrls) + '</div>' : (c.health_consent_at ? '' : '<div class="small muted">Blood tests: not shared yet.</div>'))
+    + (isStaff() ? sbtBlock(c) : '')
     + '<div class="card" style="padding:18px;gap:10px;animation:none"><span class="eyebrow">Meal photos · earlier this week</span><div id="dr-week"><span class="small muted">Loading…</span></div></div>'
-    + '<div class="card" style="padding:18px;gap:6px;animation:none"><div class="card-h"><span class="eyebrow">' + (dt ? (dn <= 4 ? 'Diet · day ' + dn + ' of 4' : 'Diet · new one due') : nextDiet(c) ? 'Diet · starts ' + startsTxt(nextDiet(c)) : 'Diet') + '</span>' + (isCoach() ? '<button class="ghost" type="button" data-edit-plan="' + esc(c.id) + '">' + (dt || nextDiet(c) ? 'Write new diet' : 'Write diet') + '</button>' : '') + '</div>' + (dt || nextDiet(c) ? dietHtml(dt || nextDiet(c), 86) + (dt && nextDiet(c) ? '<span class="small muted" style="padding-top:8px">The next diet is sent and starts ' + startsTxt(nextDiet(c)) + '.</span>' : '') : '<span class="small muted">No diet yet.</span>') + '</div>'
+    + '<div class="card" style="padding:18px;gap:6px;animation:none"><div class="card-h"><span class="eyebrow">' + (dt ? (dn <= 4 ? 'Diet · day ' + dn + ' of 4' : 'Diet · new one due') : nextDiet(c) ? 'Diet · starts ' + startsTxt(nextDiet(c)) : 'Diet') + '</span>' + (isStaff() ? '<button class="ghost" type="button" data-edit-plan="' + esc(c.id) + '">' + (dt || nextDiet(c) ? 'Write new diet' : 'Write diet') + '</button>' : '') + '</div>' + (dt || nextDiet(c) ? dietHtml(dt || nextDiet(c), 86) + (dt && nextDiet(c) ? '<span class="small muted" style="padding-top:8px">The next diet is sent and starts ' + startsTxt(nextDiet(c)) + '.</span>' : '') : '<span class="small muted">No diet yet.</span>') + '</div>'
     + liquidsCard(c)
     + '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="eyebrow" style="width:100%">Badges</span>' + BADGES.map((b) => '<span style="display:flex;align-items:center;gap:6px" class="small"><svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true"><path ' + (bs[b.k] ? 'style="fill:' + b.fill + '"' : 'class="hex-l"') + ' d="' + HEX + '"/><g transform="translate(20 20)"><path class="gl' + (bs[b.k] ? ' on' : '') + '" d="' + b.g + '"/></g></svg>' + (bs[b.k] ? b.name : '<span class="muted">' + b.name + '</span>') + '</span>').join('') + '</div>'
     + '<div class="small">Plan ' + fmtShort(c.plan_start) + ' to ' + fmtDay(c.plan_end) + (planLeft(c) < 0 ? ' (ended)' : '') + ' · detox every ' + c.detox_freq + ' days · ' + c.kcal_target + ' kcal target</div>';
-  if (isCoach()) h += '<div style="display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px"><button class="ghost" style="height:44px" type="button" data-renew="' + esc(c.id) + '">Renew 30 days</button>'
+  if (isStaff()) h += '<div style="display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px"><button class="ghost" style="height:44px" type="button" data-renew="' + esc(c.id) + '">Renew 30 days</button>'
     + (S.rmConfirm === c.id ? '<span class="small" style="align-self:center;flex-basis:100%">Delete ' + esc(first(c.name)) + ', their login, all their logs and their photos? This can’t be undone.</span><button class="ghost" style="height:44px" type="button" data-rm-no="1">Keep</button><button class="ghost danger" style="height:44px" type="button" data-rm-yes="' + esc(c.id) + '">Delete for good</button>' : '<button class="ghost danger" style="height:44px" type="button" data-rm="' + esc(c.id) + '">Delete client</button>') + '</div>';
   body.innerHTML = h; body.scrollTop = keep;
   renderChart(c.goal_kg ? num(c.goal_kg) : null, ws, $('#dr-chart'), num(c.start_kg));
@@ -1587,13 +1643,18 @@ function renderDiet() {
   const others = cs.filter((c) => c.id !== sc.id && (S.diets[c.id] || []).length), fsel = $('#dc-from'), fo = '<option value="">Copy from another client…</option>' + others.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('');
   fsel.hidden = !others.length; if (fsel.dataset.sig !== fo) { fsel.innerHTML = fo; fsel.dataset.sig = fo; }
   const past = all.slice().reverse().slice(0, 6);
-  $('#dc-history').innerHTML = past.length ? '<span class="eyebrow" style="display:block;margin-bottom:4px">Diets sent to ' + esc(first(sc.name)) + '</span>' + past.map((x) => '<div class="dc-hist"><span style="min-width:0;display:flex;flex-direction:column"><strong style="font-size:14px">' + span(x) + (dietDay1(x) > TODAY ? ' · upcoming' : '') + '</strong><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc([x.morning].concat(dietMeals(x), [x.night]).filter(Boolean).join(' · ')) + '</span></span><span style="display:flex;gap:6px"><button class="ghost" type="button" data-diet-reuse="' + esc(x.id) + '">Reuse</button><button class="ghost danger" type="button" data-diet-del="' + esc(x.id) + '">Delete</button></span></div>').join('') : '';
+  $('#dc-history').innerHTML = past.length ? '<span class="eyebrow" style="display:block;margin-bottom:4px">Diets sent to ' + esc(first(sc.name)) + '</span>' + past.map((x) => {
+    const open = S.dietView === x.id;
+    return '<div class="dc-hist"><span style="min-width:0;display:flex;flex-direction:column"><strong style="font-size:14px">' + span(x) + (dietDay1(x) > TODAY ? ' · upcoming' : '') + '</strong><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc([x.morning].concat(dietMeals(x), [x.night]).filter(Boolean).join(' · ')) + '</span></span>'
+      + '<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="ghost" type="button" aria-expanded="' + open + '" data-diet-view="' + esc(x.id) + '">' + (open ? 'Hide' : 'View') + '</button><button class="ghost" type="button" data-diet-reuse="' + esc(x.id) + '">Reuse</button><button class="ghost danger" type="button" data-diet-del="' + esc(x.id) + '">Delete</button></span></div>'
+      + (open ? '<div style="padding:4px 0 14px">' + dietHtml(x, 96) + '</div>' : '');
+  }).join('') : '';
 }
 $('#dc-client').addEventListener('change', (e) => { S.sel = e.target.value; S.dietFor = null; renderDiet(); });
 $('#dc-copy').addEventListener('click', () => { const all = S.diets[S.sel] || []; if (all.length) { fillDiet(all[all.length - 1]); $('#dc-m0').focus(); } });
 $('#dc-from').addEventListener('change', (e) => { const id = e.target.value, all = S.diets[id] || [], c = S.clients.find((x) => x.id === id); e.target.value = ''; if (!all.length || !c) return; fillDiet(all[all.length - 1]); toast('Copied ' + first(c.name) + '’s latest diet. Edit it, then send.'); $('#dc-m0').focus(); });
 $('#dc-form').addEventListener('submit', async (e) => {
-  e.preventDefault(); if (!isCoach() || !S.sel) return;
+  e.preventDefault(); if (!isStaff() || !S.sel) return;
   const err = $('#dc-err'), fail = (m) => { err.textContent = m; err.hidden = false; };
   const meals = [0, 1, 2, 3, 4].map((i) => $('#dc-m' + i).value.trim()), start = $('#dc-start').value, c = S.clients.find((x) => x.id === S.sel);
   if (!meals.some(Boolean)) return fail('Write at least one meal.');
@@ -1653,15 +1714,20 @@ function testsHtml(list, urls) {
       + (dl == null || dl === 0 ? 'Target ' + T[4] : (dl > 0 ? '▲ ' : '▼ ') + Math.abs(dl).toFixed(T[0] === 'hba1c' ? 1 : 0) + ' · ' + (better ? '<span class="st-ok">better</span>' : '<span class="st-bad">worse</span>')) + '</span></div>'; }).join('') + '</div>'
     + (tl.file_path && urls && urls[tl.file_path] ? '<a class="small" href="' + esc(urls[tl.file_path]) + '" target="_blank" rel="noopener">Open the attached report</a>' : '');
 }
-let liveTimer = null;
+let liveTimer = null, coachTimer = null;
 function startRealtime() {
   if (S.rt || !S.sb.channel) return;
   const kick = () => { clearTimeout(liveTimer); liveTimer = setTimeout(onLive, 250); };
+  // client, diet and blood-test changes: the team's screens reload straight away (not on the 60-second timer)
+  const kickCoach = () => { clearTimeout(coachTimer); coachTimer = setTimeout(() => { if (S.session && !$('#app').hidden && S.role !== 'client' && !S.drawer) refreshStaff(); }, 250); };
   try {
     S.rt = S.sb.channel('sf-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, kick)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'threads' }, kick)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'photo_comments' }, kick)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, kickCoach)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'diets' }, kickCoach)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'blood_tests' }, kickCoach)
       .subscribe();
   } catch (e) { S.rt = null; }
 }
@@ -1732,6 +1798,8 @@ document.addEventListener('click', (e) => {
   }
   if (!isStaff()) return;
   // staff
+  // "avg lost" opens the clients table sorted by loss, highest first
+  if (t.dataset.kpiSort) { S.sortK = t.dataset.kpiSort; S.sortDir = -1; S.tier = 'All'; S.cq = ''; setTab('clients'); renderClientsTable(); return; }
   if (t.dataset.tab && !t.dataset.go) { setTab(t.dataset.tab); return; }
   if (t.dataset.kth) { S.kThread = t.dataset.kth; S.kOpen = true; if (t.dataset.go) { S.ibox = 'mine'; setTab(t.dataset.go); } threadNav(); loadMsgs(S.kThread).then(() => { renderInbox(); if (t.dataset.go) window.scrollTo({ top: 0, behavior: 'smooth' }); }).catch((er) => toast(friendly(er))); return; }
   if (t.dataset.doneThread) { S.sb.rpc('mark_thread_done', { p_thread: t.dataset.doneThread }).then(async (r) => { if (r.error) { toast(friendly(r.error)); return; } await loadThreads(); renderStaff(); toast('Marked as done'); }); return; }
@@ -1756,13 +1824,21 @@ document.addEventListener('click', (e) => {
   if (t.dataset.openBc) { openBroadcast(); return; }
   if (t.dataset.lqRm) { const row = t.closest('.lq-row'); if (row) row.remove(); return; }
   if (t.dataset.dietClient) { S.sel = t.dataset.dietClient; S.dietFor = null; renderDiet(); return; }
-  if (t.dataset.dietReuse && isCoach()) { const dd = [].concat(...Object.values(S.diets)).find((x) => x.id === t.dataset.dietReuse); if (dd) { fillDiet(dd); $('#dc-m0').focus(); } return; }
-  if (t.dataset.dietDel && isCoach()) { t.disabled = true; S.sb.rpc('delete_diet', { p_id: t.dataset.dietDel }).then(({ error }) => { if (error) { toast(friendly(error)); t.disabled = false; } else { toast('Diet removed'); refreshStaff(); } }); return; }
+  if (t.dataset.dietView && isStaff()) { S.dietView = S.dietView === t.dataset.dietView ? null : t.dataset.dietView; renderDiet(); return; }
+  if (t.dataset.dietReuse && isStaff()) { const dd = [].concat(...Object.values(S.diets)).find((x) => x.id === t.dataset.dietReuse); if (dd) { fillDiet(dd); $('#dc-m0').focus(); } return; }
+  if (t.dataset.dietDel && isStaff()) {
+    if (!window.confirm('Delete this diet? The client will no longer see it, and it can’t be undone.')) return;
+    t.disabled = true; S.sb.rpc('delete_diet', { p_id: t.dataset.dietDel }).then(({ error }) => { if (error) { toast(friendly(error)); t.disabled = false; } else { toast('Diet deleted'); refreshStaff(); } }); return;
+  }
   if (t.dataset.firstClient) { setTab('clients'); if ($('#add-form').hidden) $('#add-toggle').click(); return; }
   if (t.dataset.copyCred) { copyText(S.cred ? S.cred.text : ''); return; }
   if (t.dataset.credClose) { S.cred = null; renderCred(); return; }
   if (t.dataset.copyDcred) { copyText(S.dcred || ''); return; }
-  if (!isCoach()) return;
+  if (!isStaff()) return;
+  if (t.dataset.sbt != null) { S.sbtOpen = S.sbtOpen === S.drawer ? null : S.drawer; renderDrawer(); return; }
+  // the assistant may edit details, renew, and delete clients; everything below is coach only
+  const staffOk = t.dataset.dmode === 'edit' || t.dataset.renew != null || t.dataset.rm != null || t.dataset.rmNo != null || t.dataset.rmYes != null || t.dataset.editPlan != null;
+  if (!isCoach() && !staffOk) return;
   // coach only
   if (t.dataset.dmode != null && t.dataset.for) { S.drawerMode = t.dataset.dmode || null; S.dcred = null; S.rmConfirm = null; renderDrawer(); return; }
   if (t.dataset.resetGo) {
