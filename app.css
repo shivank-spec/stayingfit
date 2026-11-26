@@ -239,3 +239,11 @@ tr.click:hover td{background:var(--soft)}
 .auth-full{display:block;width:min(270px,100%);height:auto;margin:0 auto 6px}
 .brand-mark{width:30px;height:30px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+
+/* staff bottom bar has six tabs now: keep every label readable on a phone and let the bar scroll sideways if needed */
+@media (max-width:860px){
+  #sbar{overflow-x:auto;scrollbar-width:none;grid-auto-columns:minmax(66px,1fr)}
+  #sbar::-webkit-scrollbar{display:none}
+  #sbar button{font-size:10px;white-space:nowrap;min-width:66px}
+  #sbar button svg{width:44px;padding:4px 12px}
+}
