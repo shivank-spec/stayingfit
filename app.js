@@ -526,6 +526,8 @@ async function loadClient() {
   S.liquids = lq.data || []; S.ticked = new Set((tk.data || []).map((x) => x.liquid_id));
   S.board = b.data || [];
   S.tests = t.data || [];
+  { const dz = await S.sb.from('detox_menus').select('body,file_path,file_name').eq('client_id', c.id).maybeSingle(); S.detoxMine = dz.data || null; S.detoxUrl = null; }
+  if (S.detoxMine && S.detoxMine.file_path) { const s = await S.sb.storage.from('detox').createSignedUrl(S.detoxMine.file_path, 3600); S.detoxUrl = s.data ? s.data.signedUrl : null; }
   await loadComments();
   await Promise.all([loadPhotoUrls((S.day.photos || []).map((x) => x.path).concat(S.pcs.map((x) => x.path))), loadReportUrls(S.tests)]);
   if (!S.dmId) { const r = fixErr(await S.sb.rpc('ensure_chat', { p_kind: 'dm' })); S.dmId = r.data; }
@@ -684,14 +686,14 @@ function renderClient() {
   const nxTxt = diet && nx ? 'Your next diet starts ' + startsTxt(nx) + '.<span class="home-only"> Open Diet to read it.</span>' : '';
   $('#pl-eyebrow').textContent = !shown ? 'Your diet' : !diet ? 'Your diet · starts ' + startsTxt(nx) : dn <= 4 ? 'Your diet · day ' + dn + ' of 4' : 'Your diet · new one due';
   $('#pl-h').textContent = 'From ' + COACH;
-  $('#plan-today').innerHTML = shown ? dietHtml(shown, 96)
+  $('#plan-today').innerHTML = (shown ? dietHtml(shown, 96)
     + '<div class="diet-foot"><span class="diet-dots" aria-hidden="true">' + [1, 2, 3, 4].map((k) => '<i class="' + (k < dn ? 'past' : k === dn ? 'now' : '') + '"></i>').join('') + '</span><span class="small">'
     + (!diet ? 'Day 1 is ' + fmtDay(d1) + '. Follow it until ' + fmtDay(addDays(d1, 3)) + '.'
       : dn < 4 ? 'Follow this until ' + fmtDay(addDays(d1, 3)) + '. ' + (nxTxt || 'New diet from ' + fmtDay(addDays(d1, 4)) + '.')
       : dn === 4 ? 'Last day of this diet. ' + (nxTxt || esc(COACH) + ' will send your next one.')
       : nxTxt ? nxTxt + ' Keep following this one until then.' : esc(COACH) + ' will send your next diet soon. Keep following this one until then.') + '</span></div>'
     + (diet && nx ? '<div class="diet-next"><span class="eyebrow">Next diet · starts ' + esc(startsTxt(nx)) + '</span>' + dietHtml(nx, 96) + '</div>' : '')
-    : '<div class="empty">' + esc(COACH) + ' hasn’t added your diet yet. It shows up here as soon as she does.</div>';
+    : '<div class="empty">' + esc(COACH) + ' hasn’t added your diet yet. It shows up here as soon as she does.</div>') + detoxBlock();
   const items = [];
   if (nx && dietDay1(nx) === addDays(TODAY, 1)) items.push(diet ? 'A new diet starts tomorrow' : 'Your diet starts tomorrow');
   items.push('Weigh in to reach a ' + (logged ? streak + 1 : streak ? streak + 1 : 1) + '-day streak');
@@ -862,6 +864,12 @@ function renderClientHealth() {
   $('#bt-h').textContent = tl ? 'Report from ' + fmtDay(tl.d) : 'No reports yet';
   $('#bt-view').innerHTML = testsHtml(S.tests, S.reportUrls);
 }
+// the client's detox menu: text, a file, or both (the team writes it in the Diet tab)
+function detoxBlock() {
+  const z = S.detoxMine; if (!z || (!z.body && !z.file_path)) return '';
+  return '<div class="detox-block"><span class="eyebrow">' + qIco('leaf') + 'Detox menu</span>' + (z.body ? '<p class="detox-text">' + esc(z.body) + '</p>' : '')
+    + (z.file_path ? '<a class="ghost" href="' + esc(S.detoxUrl || '#') + '" target="_blank" rel="noopener">Open ' + esc(z.file_name || 'the detox file') + '</a>' : '') + '</div>';
+}
 function dietHtml(diet, w) {
   const m = dietMeals(diet), row = (name, text) => (text && String(text).trim() ? '<div class="diet-row" style="grid-template-columns:' + w + 'px minmax(0,1fr)"><span class="eyebrow" style="padding-top:3px">' + name + '</span><span style="white-space:pre-line">' + esc(text) + '</span></div>' : '');
   return row('Morning', diet.morning) + MEALS.map((name, i) => row(name, m[i])).join('') + row('Night', diet.night)
@@ -951,6 +959,7 @@ async function loadStaff() {
   (t.data || []).forEach((x) => { (S.allTests[x.client_id] = S.allTests[x.client_id] || []).push(x); });
   (lq.data || []).forEach((x) => { (S.liq[x.client_id] = S.liq[x.client_id] || []).push(x); });
   (tk.data || []).forEach((x) => { (S.ticks[x.client_id] = S.ticks[x.client_id] || {})[x.liquid_id] = x.at; });
+  { const dz = await S.sb.from('detox_menus').select('client_id,body,file_path,file_name,updated_at'); S.detox = {}; (dz.data || []).forEach((x) => { S.detox[x.client_id] = x; }); }
   if (!nt.error) { S.notes = {}; (nt.data || []).forEach((x) => { S.notes[x.client_id] = x; }); }
   if (!S.threads.some((x) => x.kind === 'team')) { const r = await S.sb.rpc('ensure_team'); if (!r.error) await loadThreads(); }
   const mine = inboxThreads();
@@ -1026,7 +1035,7 @@ function renderStaff() {
   const avgLoss = n ? cs.reduce((a, c) => a + lossPctOf(c, wsOf(c)), 0) / n : 0;
   // every card is a button that opens its page: weigh-ins, messages, clients (sorted by loss for "avg lost")
   $('#kpis').innerHTML = [['clients', n, 'clients', '', 'data-tab="clients"'], ['weighins', logged + '/' + n, 'weighed in today', '', 'data-tab="weighins"'], ['messages', waiting, 'waiting for a reply', waiting ? 'warm' : '', 'data-tab="messages"'], ['loss', avgLoss.toFixed(1) + '%', 'avg lost since start', '', 'data-kpi-sort="loss"']]
-    .map((k) => '<button class="kpi" type="button" ' + k[4] + ' aria-label="' + esc(k[2]) + ': ' + esc(String(k[1])) + '. Open"><strong class="num ' + k[3] + '">' + k[1] + '</strong><span class="small muted">' + k[2] + '</span></button>').join('');
+    .map((k, i) => '<button class="kpi" type="button" ' + k[4] + ' aria-label="' + esc(k[2]) + ': ' + esc(String(k[1])) + '. Open"><span class="kpi-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="ic" d="' + [ICONS.users, ICONS.scale, ICONS.chat, ICONS.leaf][i] + '"/></svg></span><strong class="num ' + k[3] + '">' + k[1] + '</strong><span class="small muted">' + k[2] + '</span></button>').join('');
   const counts = { today: tasks.length, messages: waiting };
   $('#stabs').innerHTML = staffTabs().map((t) => '<button class="stab" type="button" role="tab" id="t-' + t[0] + '" aria-controls="p-' + t[0] + '" data-tab="' + t[0] + '">' + t[1] + (counts[t[0]] ? '<span class="cnt">' + counts[t[0]] + '</span>' : '') + '</button>').join('');
   const SB = { today: ['M3 11l9-7 9 7v9H3z', isCoach() ? 'Today' : 'Tasks'], weighins: [ICONS.scale, 'Weigh-ins'], clients: [ICONS.users, 'Clients'], messages: [ICONS.chat, 'Chat'], diet: [G.leaf, 'Diets'], plans: [ICONS.clock, 'Plans'] };
@@ -1626,7 +1635,7 @@ function renderDiet() {
   const opts = cs.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('');
   if (dsel.dataset.sig !== opts) { dsel.innerHTML = opts; dsel.dataset.sig = opts; }
   $('#dc-form').hidden = !sc;
-  if (!sc) { $('#dc-h').textContent = 'Diet'; $('#dc-eyebrow').textContent = 'Diet'; $('#dc-current').innerHTML = '<div class="empty">Add a client to write their diet.</div>'; $('#dc-history').innerHTML = ''; return; }
+  if (!sc) { $('#dc-h').textContent = 'Diet'; $('#dc-eyebrow').textContent = 'Diet'; $('#dc-current').innerHTML = '<div class="empty">Add a client to write their diet.</div>'; $('#dc-history').innerHTML = ''; renderDetoxStaff(null); return; }
   dsel.value = sc.id;
   const all = S.diets[sc.id] || [], dt = curDiet(sc), nx = nextDiet(sc), dn = dt ? dietDay(dt) : 0, st = dietStatus(sc), span = (x) => fmtDay(dietDay1(x)) + ' to ' + fmtDay(addDays(dietDay1(x), 3));
   $('#dc-h').textContent = sc.name; $('#dc-eyebrow').textContent = 'Diet · ' + st[1];
@@ -1638,6 +1647,7 @@ function renderDiet() {
     const tmr = addDays(TODAY, 1), after = nx ? addDays(dietDay1(nx), 4) : dt && dn <= 4 ? addDays(dietDay1(dt), 4) : tmr;
     $('#dc-start').value = after > tmr ? after : tmr;
   }
+  renderDetoxStaff(sc);
   $('#dc-form-h').textContent = 'New diet for ' + first(sc.name);
   $('#dc-copy').hidden = !all.length;
   const others = cs.filter((c) => c.id !== sc.id && (S.diets[c.id] || []).length), fsel = $('#dc-from'), fo = '<option value="">Copy from another client…</option>' + others.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('');
@@ -1664,6 +1674,40 @@ $('#dc-form').addEventListener('submit', async (e) => {
   b.disabled = false; b.textContent = 'Send diet';
   if (r.error) return fail(friendly(r.error));
   S.dietFor = null; toast('Diet sent to ' + first(c.name)); await refreshStaff();
+});
+
+// the team's detox card in the Diet tab: shows the current menu, and saves a new one (text, a file, or both)
+function renderDetoxStaff(sc) {
+  $('#dz-card').hidden = !sc; if (!sc) return;
+  const z = (S.detox || {})[sc.id], has = z && (z.body || z.file_path);
+  $('#dz-h').textContent = 'Detox menu for ' + first(sc.name);
+  $('#dz-current').innerHTML = has
+    ? '<div class="notice" style="margin-bottom:10px"><strong>Current menu</strong> · updated ' + esc(fmtShort(String(z.updated_at).slice(0, 10))) + '. Saving below replaces it.</div>'
+      + (z.body ? '<p class="detox-text">' + esc(z.body) + '</p>' : '') + (z.file_path ? '<span class="small">File: ' + esc(z.file_name || 'attached file') + '</span>' : '')
+      + '<div class="row" style="margin:8px 0 14px"><button class="ghost danger" type="button" data-detox-del="' + esc(sc.id) + '">Remove this detox menu</button></div>'
+    : '<div class="small muted" style="margin-bottom:12px">No detox menu yet for ' + esc(first(sc.name)) + '.</div>';
+}
+$('#dz-form').addEventListener('submit', (e) => {
+  e.preventDefault(); if (!isStaff() || !S.sel) return;
+  const err = $('#dz-err'), fail = (m) => { err.textContent = m; err.hidden = false; };
+  const body = $('#dz-body').value.trim(), file = $('#dz-file').files[0], c = S.clients.find((x) => x.id === S.sel);
+  if (!body && !file) return fail('Write the menu or attach a file.');
+  if (file && file.size > 50 * 1024 * 1024) return fail('That file is over 50 MB.');
+  err.hidden = true; const b = $('#dz-go'); b.disabled = true; b.innerHTML = '<span class="spin"></span> Saving…';
+  const reset = () => { b.disabled = false; b.textContent = 'Save detox menu'; };
+  (async () => {
+    let path = null, name = null;
+    if (file) {
+      path = S.sel + '/' + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)) + '-' + file.name.replace(/[^A-Za-z0-9._-]+/g, '_').slice(-60);
+      name = file.name.slice(0, 200);
+      const up = await S.sb.storage.from('detox').upload(path, file, { contentType: file.type || 'application/octet-stream' });
+      if (up.error) { reset(); return fail(friendly(up.error)); }
+    }
+    const r = await S.sb.rpc('save_detox_menu', { p_client: S.sel, p_body: body || null, p_file: path, p_file_name: name });
+    reset();
+    if (r.error) return fail(friendly(r.error));
+    $('#dz-body').value = ''; $('#dz-file').value = ''; toast('Detox menu saved for ' + first(c.name)); await refreshStaff();
+  })();
 });
 
 /* renewals + detox */
@@ -1727,6 +1771,7 @@ function startRealtime() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'photo_comments' }, kick)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, kickCoach)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'diets' }, kickCoach)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'detox_menus' }, kickCoach)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'blood_tests' }, kickCoach)
       .subscribe();
   } catch (e) { S.rt = null; }
@@ -1824,6 +1869,10 @@ document.addEventListener('click', (e) => {
   if (t.dataset.openBc) { openBroadcast(); return; }
   if (t.dataset.lqRm) { const row = t.closest('.lq-row'); if (row) row.remove(); return; }
   if (t.dataset.dietClient) { S.sel = t.dataset.dietClient; S.dietFor = null; renderDiet(); return; }
+  if (t.dataset.detoxDel && isStaff()) {
+    if (!window.confirm('Remove this detox menu? The client will no longer see it.')) return;
+    t.disabled = true; S.sb.rpc('delete_detox_menu', { p_client: t.dataset.detoxDel }).then(({ error }) => { if (error) { toast(friendly(error)); t.disabled = false; } else { toast('Detox menu removed'); refreshStaff(); } }); return;
+  }
   if (t.dataset.dietView && isStaff()) { S.dietView = S.dietView === t.dataset.dietView ? null : t.dataset.dietView; renderDiet(); return; }
   if (t.dataset.dietReuse && isStaff()) { const dd = [].concat(...Object.values(S.diets)).find((x) => x.id === t.dataset.dietReuse); if (dd) { fillDiet(dd); $('#dc-m0').focus(); } return; }
   if (t.dataset.dietDel && isStaff()) {

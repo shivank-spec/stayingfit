@@ -83,3 +83,71 @@ grant execute on function public.delete_diet(uuid) to authenticated;
 revoke all on function public.staff_add_blood_test(uuid, date, numeric, int, int, int, text) from public, anon;
 grant execute on function public.staff_add_blood_test(uuid, date, numeric, int, int, int, text) to authenticated;
 grant execute on function public.delete_client(uuid) to authenticated;
+
+-- 6. Detox menu: the team uploads a menu for each client (text, a file of any kind, or both).
+--    The client reads it; only the team writes it.
+create table if not exists public.detox_menus (
+  client_id  uuid primary key references public.clients(id) on delete cascade,
+  body       text check (body is null or length(body) <= 4000),
+  file_path  text,
+  file_name  text,
+  updated_at timestamptz not null default now(),
+  updated_by uuid
+);
+alter table public.detox_menus enable row level security;
+drop policy if exists "detox_menus: own or staff" on public.detox_menus;
+create policy "detox_menus: own or staff" on public.detox_menus for select to authenticated
+  using (client_id = public.my_client_id() or public.is_staff());
+revoke all on public.detox_menus from anon, authenticated;
+grant select on public.detox_menus to authenticated;
+
+insert into storage.buckets (id, name, public, file_size_limit)
+  values ('detox', 'detox', false, 52428800)
+  on conflict (id) do update set file_size_limit = 52428800, allowed_mime_types = null;
+
+drop policy if exists "detox: client reads own" on storage.objects;
+create policy "detox: client reads own" on storage.objects for select to authenticated
+  using (bucket_id = 'detox' and ((storage.foldername(name))[1] = public.my_client_id()::text or public.is_staff()));
+drop policy if exists "detox: staff uploads" on storage.objects;
+create policy "detox: staff uploads" on storage.objects for insert to authenticated
+  with check (bucket_id = 'detox' and public.is_staff());
+drop policy if exists "detox: staff deletes" on storage.objects;
+create policy "detox: staff deletes" on storage.objects for delete to authenticated
+  using (bucket_id = 'detox' and public.is_staff());
+
+create or replace function public.save_detox_menu(p_client uuid, p_body text default null, p_file text default null, p_file_name text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare b text := nullif(left(trim(coalesce(p_body, '')), 4000), '');
+begin
+  if not (public.is_staff() or public.is_console()) then raise exception 'Only the team can upload a detox menu'; end if;
+  if not exists (select 1 from public.clients where id = p_client) then raise exception 'Client not found'; end if;
+  if b is null and p_file is null then raise exception 'Write the menu or attach a file'; end if;
+  if p_file is not null and p_file !~ ('^' || p_client::text || '/[^/]+$') then raise exception 'File does not belong to this client'; end if;
+  insert into public.detox_menus (client_id, body, file_path, file_name, updated_at, updated_by)
+    values (p_client, b, p_file, nullif(left(coalesce(p_file_name, ''), 200), ''), now(), auth.uid())
+    on conflict (client_id) do update set body = excluded.body,
+      file_path = coalesce(excluded.file_path, public.detox_menus.file_path),
+      file_name = coalesce(excluded.file_name, public.detox_menus.file_name),
+      updated_at = now(), updated_by = auth.uid();
+end $$;
+
+create or replace function public.delete_detox_menu(p_client uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare old_path text;
+begin
+  if not (public.is_staff() or public.is_console()) then raise exception 'Only the team can remove a detox menu'; end if;
+  select file_path into old_path from public.detox_menus where client_id = p_client;
+  delete from public.detox_menus where client_id = p_client;
+  if old_path is not null then delete from storage.objects where bucket_id = 'detox' and name = old_path; end if;
+end $$;
+
+revoke all on function public.save_detox_menu(uuid, text, text, text) from public, anon;
+grant execute on function public.save_detox_menu(uuid, text, text, text) to authenticated;
+revoke all on function public.delete_detox_menu(uuid) from public, anon;
+grant execute on function public.delete_detox_menu(uuid) to authenticated;
+
+do $$ begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    begin execute 'alter publication supabase_realtime add table public.detox_menus'; exception when duplicate_object then null; end;
+  end if;
+end $$;

@@ -247,3 +247,19 @@ tr.click:hover td{background:var(--soft)}
   #sbar button{font-size:10px;white-space:nowrap;min-width:66px}
   #sbar button svg{width:44px;padding:4px 12px}
 }
+
+/* detox menu: shown to the client in the Diet card, and to the team in the Diet tab */
+.detox-block{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:14px;padding:14px 16px;border-radius:16px;background:#eef7f2;border:1px solid #d5ebdf}
+.detox-text{white-space:pre-wrap;margin:0;line-height:1.5}
+.dz-card{margin-top:18px;padding-top:16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.dz-card[hidden]{display:none}
+
+/* phone home: each number card gets an icon, and the quick actions become large tap targets */
+.kpi-ic{width:36px;height:36px;border-radius:12px;background:#e1f2f8;color:#0d7699;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.kpi-ic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@media (max-width:760px){
+  .kpis .kpi{gap:8px;min-height:104px}
+  .kpis .kpi strong{font-size:26px}
+  #k-quick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  #k-quick button{height:48px;justify-content:center;width:100%}
+}

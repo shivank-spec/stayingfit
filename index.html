@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preload" href="fonts/pjs.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="app.css?v=7">
+<link rel="stylesheet" href="app.css?v=9">
 <link rel="stylesheet" href="theme.css?v=3">
 </head>
 <body>
@@ -435,6 +435,17 @@
           <div class="row" style="align-items:center"><button class="btn" type="submit" id="dc-go">Send diet</button><span class="small muted">The client sees it straight away. It runs for 4 days.</span></div>
         </form>
         <div id="dc-history"></div>
+        <!-- detox menu: any text and any file; shown to the client -->
+        <div class="dz-card" id="dz-card" hidden>
+          <div class="card-h"><div><span class="eyebrow">Detox</span><h2 id="dz-h">Detox menu</h2></div></div>
+          <div id="dz-current"></div>
+          <form id="dz-form" class="dc-form" novalidate>
+            <div class="field"><label class="lbl" for="dz-body">Detox menu (text)</label><textarea class="ta" id="dz-body" maxlength="4000" rows="5" placeholder="Write the detox menu here, or attach a file below."></textarea></div>
+            <div class="field"><label class="lbl" for="dz-file">Or attach a file (any type, up to 50 MB)</label><input class="input" id="dz-file" type="file"></div>
+            <div class="err" id="dz-err" role="alert" hidden></div>
+            <div class="row" style="align-items:center"><button class="btn" type="submit" id="dz-go">Save detox menu</button></div>
+          </form>
+        </div>
       </section>
     </div>
   </div>
@@ -493,6 +504,6 @@
 
 <script src="config.js"></script>
 <script src="supabase-2.117.2.js"></script>
-<script src="app.js?v=12"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>
