@@ -151,3 +151,109 @@ do $$ begin
     begin execute 'alter publication supabase_realtime add table public.detox_menus'; exception when duplicate_object then null; end;
   end if;
 end $$;
+
+-- 7. The assistant has the same powers as the coach over clients, except the
+--    coach-only items that touch every client at once (the full data download, and
+--    creating or resetting the coach's own login). Re-declares each function so the
+--    checks say "team" instead of "coach".
+create or replace function public.add_client(p_username text, p_password text, p_name text, p_start_kg numeric,
+  p_goal_kg numeric default null, p_tier text default 'Weekly', p_days int default 30) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare uid uuid; cid uuid; t date := public.today_ist();
+begin
+  if not (public.is_staff() or public.is_console()) then raise exception 'Only the team can add clients'; end if;
+  if coalesce(length(trim(p_name)), 0) = 0 then raise exception 'Enter the client''s name'; end if;
+  if p_start_kg is null or p_start_kg not between 30 and 250 then raise exception 'Start weight must be between 30 and 250 kg'; end if;
+  if p_goal_kg is not null and p_goal_kg not between 30 and 250 then raise exception 'Goal weight must be between 30 and 250 kg'; end if;
+  if p_tier not in ('Hand-holding','Weekly') then raise exception 'Check-ins must be Hand-holding or Weekly'; end if;
+  if p_days is null or p_days not between 7 and 365 then raise exception 'Plan length must be 7 to 365 days'; end if;
+  uid := public._create_login(p_username, p_password, 'client', p_name);
+  insert into public.clients (user_id, name, tier, start_kg, goal_kg, plan_start, plan_end, diet_anchor, last_detox)
+  values (uid, left(trim(p_name), 80), p_tier, round(p_start_kg, 1), round(p_goal_kg, 1), t, t + p_days, t, t)
+  returning id into cid;
+  return cid;
+end $$;
+
+-- the team can reset a client's password (the coach can also reset the assistant's)
+create or replace function public.reset_password(p_username text, p_new_password text) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare p public.profiles;
+begin
+  select * into p from public.profiles where username = lower(trim(p_username));
+  if not found then raise exception 'No login called "%"', p_username; end if;
+  if not (public.is_console() or (public.is_coach() and p.role in ('client','assistant')) or (public.is_staff() and p.role = 'client')) then
+    raise exception 'You can''t reset this password';
+  end if;
+  perform public._check_password(p_new_password);
+  update auth.users set encrypted_password = crypt(p_new_password, gen_salt('bf', 10)), updated_at = now() where id = p.id;
+  update public.profiles set must_change_pw = true where id = p.id;
+  delete from auth.sessions where user_id = p.id;
+end $$;
+
+create or replace function public.coach_mark_detox(p_client uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if not public.is_staff() then raise exception 'Only the team can do this'; end if;
+  update public.clients set last_detox = public.today_ist(), detox_done = detox_done + 1 where id = p_client returning detox_done into n;
+  if n is null then raise exception 'Client not found'; end if;
+  if n >= 3 then
+    update public.clients set badges = badges || jsonb_build_object('detox', public.today_ist()), stars = stars + 5
+      where id = p_client and not (badges ? 'detox');
+  end if;
+end $$;
+
+create or replace function public.create_family_group(p_title text, p_clients uuid[]) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare tid uuid; n int;
+begin
+  if not public.is_staff() then raise exception 'Only the team can create groups'; end if;
+  if coalesce(length(trim(p_title)), 0) = 0 then raise exception 'Give the group a name'; end if;
+  select count(*) into n from public.clients where id = any(p_clients);
+  if n < 2 then raise exception 'Pick at least two clients for a family group'; end if;
+  insert into public.threads (kind, title) values ('family', left(trim(p_title), 60)) returning id into tid;
+  insert into public.thread_members (thread_id, client_id) select tid, id from public.clients where id = any(p_clients) on conflict do nothing;
+  return tid;
+end $$;
+
+create or replace function public.set_liquids(p_client uuid, p_items jsonb) returns int
+language plpgsql security definer set search_path = public as $$
+declare it jsonb; n int := 0; nm text; wh text; lid uuid;
+begin
+  if not public.is_staff() then raise exception 'Only the team can change the liquids list'; end if;
+  if not exists (select 1 from public.clients where id = p_client) then raise exception 'Client not found'; end if;
+  if p_items is null or jsonb_typeof(p_items) <> 'array' then raise exception 'Send a list'; end if;
+  if jsonb_array_length(p_items) > 12 then raise exception 'Up to 12 liquids'; end if;
+  update public.liquids set active = false where client_id = p_client;
+  for it in select * from jsonb_array_elements(p_items) loop
+    nm := left(trim(coalesce(it->>'name', '')), 60); wh := left(trim(coalesce(it->>'when', '')), 60);
+    continue when length(nm) = 0;
+    select id into lid from public.liquids where client_id = p_client and lower(name) = lower(nm) and lower(when_text) = lower(wh) limit 1;
+    if lid is null then insert into public.liquids (client_id, name, when_text, sort) values (p_client, nm, wh, n);
+    else update public.liquids set active = true, sort = n, name = nm, when_text = wh where id = lid; end if;
+    n := n + 1;
+  end loop;
+  update public.clients set liquids_updated = public.today_ist() where id = p_client;
+  return n;
+end $$;
+
+create or replace function public.delete_photo_comment(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_staff() then raise exception 'Only the team can do this'; end if;
+  delete from public.photo_comments where id = p_id and (author = auth.uid() or public.is_staff());
+end $$;
+
+-- deleting a client: the app removes their photos and report files first, so the team needs this too
+create or replace function public.client_files(p_client uuid) returns table (bucket text, path text)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_staff() then raise exception 'Only the team can do this'; end if;
+  return query select o.bucket_id::text, o.name::text from storage.objects o
+    where o.bucket_id in ('meal-photos', 'reports') and o.name like p_client::text || '/%' order by 1, 2;
+end $$;
+
+drop policy if exists "files: coach deletes" on storage.objects;
+drop policy if exists "files: staff deletes" on storage.objects;
+create policy "files: staff deletes" on storage.objects for delete to authenticated
+  using (bucket_id in ('meal-photos', 'reports') and public.is_staff());

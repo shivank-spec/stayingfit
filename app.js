@@ -1002,7 +1002,7 @@ const isoDay = (iso) => { let v = isoSeen.get(iso); if (!v) { if (isoSeen.size >
 const isoMin = (iso) => { const x = new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }); return +x.slice(0, 2) * 60 + +x.slice(3, 5); };
 const minLabel = (m) => (m < 0 ? 'TODAY' : ((Math.floor(m / 60) + 11) % 12 + 1) + ':' + pad(m % 60) + (m < 720 ? ' AM' : ' PM'));
 async function coachUpdate(id, patch, msg) {
-  if (!isCoach()) return false;
+  if (!isStaff()) return false;
   const { data, error } = await S.sb.from('clients').update(patch).eq('id', id).select('id');
   if (error || !data || !data.length) { toast(error ? friendly(error) : 'That change didn’t save. Try again.'); return false; }
   if (msg) toast(msg); await refreshStaff(); return true;
@@ -1234,7 +1234,7 @@ function buildTasks() {
   waitingThreads().forEach((t) => out.push({ g: 'reply', p: 1, title: t.kind === 'team' ? threadName(t) + ' sent you a message' : threadName(t) + (t.kind === 'family' ? ' (family group)' : '') + ' is waiting for a reply', sub: '“' + (t.last_text || '') + '” · ' + msgTime(t.last_at), acts: [['Reply', 'data-kth="' + esc(t.id) + '" data-go="messages"', 'btn'], ['Mark done', 'data-done-thread="' + esc(t.id) + '"', 'ghost']] }));
   S.clients.forEach((c) => {
     const pr = profOf(c), ago = lastLogAgo(c), age = diffDays(String(c.created_at).slice(0, 10), TODAY);
-    if (!c.consent_at) { if (age >= 1) out.push({ g: 'signin', p: 3, title: c.name + ' hasn’t signed in yet', sub: 'Added ' + fmtShort(String(c.created_at).slice(0, 10)) + '. Check they got their login.', acts: isCoach() ? [['Send new login', 'data-pick="' + esc(c.id) + '" data-dmode="reset"', 'ghost']] : [] }); return; }
+    if (!c.consent_at) { if (age >= 1) out.push({ g: 'signin', p: 3, title: c.name + ' hasn’t signed in yet', sub: 'Added ' + fmtShort(String(c.created_at).slice(0, 10)) + '. Check they got their login.', acts: isStaff() ? [['Send new login', 'data-pick="' + esc(c.id) + '" data-dmode="reset"', 'ghost']] : [] }); return; }
     if (ago >= 2 && (c.last_log_date || age >= 2)) out.push({ g: 'quiet', p: c.tier === 'Hand-holding' ? 1 : 2, title: c.name + (c.last_log_date ? ' hasn’t logged for ' + ago + ' days' : ' hasn’t logged anything yet'), sub: c.tier + ' check-ins' + (c.last_log_date ? ' · last weigh-in ' + fmtShort(c.last_log_date) : ''), acts: [['Message', 'data-msg-client="' + esc(c.id) + '" data-draft="checkin"', 'ghost']] });
     else if (c.tier === 'Hand-holding' && ago >= 1 && hr >= 11) out.push({ g: 'quiet', p: 2, title: c.name + ': no weigh-in yet today', sub: 'Hand-holding · streak ' + liveStreak(c) + ' days', acts: [['Nudge', 'data-msg-client="' + esc(c.id) + '" data-draft="nudge"', 'ghost']] });
     const pl = planLeft(c);
@@ -1244,12 +1244,12 @@ function buildTasks() {
     if (c.consent_at) {
       const dt = curDiet(c), nx = nextDiet(c), dn = dt ? dietDay(dt) : 0, wd = [['Write diet', 'data-edit-plan="' + esc(c.id) + '"', 'ghost']];
       if (nx) { /* the next diet is already sent */ }
-      else if (isCoach() && !dt) out.push({ g: 'diet', p: 2, title: c.name + ' has no diet yet', sub: 'Write their first 4-day diet', acts: wd });
-      else if (isCoach() && dn > 4) out.push({ g: 'diet', p: 1, title: c.name + ' needs a new diet', sub: 'The last one ended ' + fmtDay(addDays(dietDay1(dt), 3)), acts: wd });
-      else if (isCoach() && dn === 4) out.push({ g: 'diet', p: 3, title: c.name + '’s diet ends today', sub: 'Send the next one today and it starts ' + fmtDay(addDays(TODAY, 1)), acts: wd });
+      else if (isStaff() && !dt) out.push({ g: 'diet', p: 2, title: c.name + ' has no diet yet', sub: 'Write their first 4-day diet', acts: wd });
+      else if (isStaff() && dn > 4) out.push({ g: 'diet', p: 1, title: c.name + ' needs a new diet', sub: 'The last one ended ' + fmtDay(addDays(dietDay1(dt), 3)), acts: wd });
+      else if (isStaff() && dn === 4) out.push({ g: 'diet', p: 3, title: c.name + '’s diet ends today', sub: 'Send the next one today and it starts ' + fmtDay(addDays(TODAY, 1)), acts: wd });
       const L = liqOf(c).length, D = liqDone(c);
       if (L && D < L && hr >= 14) out.push({ g: 'liquid', p: 3, title: c.name + ' hasn’t ticked today’s liquids', sub: D + ' of ' + L + ' taken so far', acts: [['Message', 'data-msg-client="' + esc(c.id) + '" data-draft="liquids"', 'ghost']] });
-      if (isCoach() && L && c.liquids_updated && diffDays(c.liquids_updated, TODAY) >= 30) out.push({ g: 'liquid', p: 3, title: c.name + '’s liquids list is a month old', sub: 'Last updated ' + fmtShort(c.liquids_updated), acts: [['Update list', 'data-pick="' + esc(c.id) + '" data-dmode="liquids"', 'ghost']] });
+      if (isStaff() && L && c.liquids_updated && diffDays(c.liquids_updated, TODAY) >= 30) out.push({ g: 'liquid', p: 3, title: c.name + '’s liquids list is a month old', sub: 'Last updated ' + fmtShort(c.liquids_updated), acts: [['Update list', 'data-pick="' + esc(c.id) + '" data-dmode="liquids"', 'ghost']] });
     }
     const ts = S.allTests[c.id] || [], tl = ts[ts.length - 1];
     if (tl && diffDays(String(tl.created_at).slice(0, 10), TODAY) <= 7) { const bad = TESTS.filter((T) => tl[T[0]] != null && T[3](+tl[T[0]]) === 2).map((T) => T[1] + ' ' + (+tl[T[0]])); if (bad.length) out.push({ g: 'health', p: 2, title: c.name + ': blood test needs a look', sub: bad.join(' · ') + ' · report ' + fmtShort(tl.d), acts: [['View', 'data-pick="' + esc(c.id) + '"', 'ghost']] }); }
@@ -1440,7 +1440,7 @@ async function renderDrawer() {
     + '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px"><h2 id="dr-h" style="font-size:26px">' + esc(c.name) + '</h2><span style="display:flex;gap:8px;flex-wrap:wrap"><span class="tag ' + tierCls(c.tier) + '">' + esc(c.tier) + '</span><span class="tag ' + (ago >= 2 ? 'danger' : '') + '">' + (ago === 0 ? 'Weighed in today' : ago === 1 ? 'Last weigh-in yesterday' : ago > 900 ? 'No weigh-ins yet' : 'Quiet for ' + ago + ' days') + '</span></span><span class="small muted">@' + esc(pr.username || '') + (!c.consent_at ? ' · hasn’t signed in yet' : pr.must_change_pw ? ' · still on a temporary password' : '') + '</span></div>'
     + '<button class="x" id="dr-close" type="button" data-close-drawer="1" aria-label="Close profile"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M6 6l12 12M18 6L6 18"/></svg></button></div>';
   h += '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" type="button" data-msg-client="' + esc(c.id) + '">Message ' + esc(first(c.name)) + '</button>'
-    + (isStaff() ? '<button class="ghost" style="height:44px" type="button" data-dmode="edit" data-for="' + esc(c.id) + '">Edit details</button>' : '') + (isStaff() ? '<button class="ghost" style="height:44px" type="button" data-edit-plan="' + esc(c.id) + '">Diet plan</button>' : '') + (isCoach() ? '<button class="ghost" style="height:44px" type="button" data-dmode="reset" data-for="' + esc(c.id) + '">Reset password</button>' : '') + '</div>';
+    + (isStaff() ? '<button class="ghost" style="height:44px" type="button" data-dmode="edit" data-for="' + esc(c.id) + '">Edit details</button>' : '') + (isStaff() ? '<button class="ghost" style="height:44px" type="button" data-edit-plan="' + esc(c.id) + '">Diet plan</button>' : '') + (isStaff() ? '<button class="ghost" style="height:44px" type="button" data-dmode="reset" data-for="' + esc(c.id) + '">Reset password</button>' : '') + '</div>';
   if (isStaff() && mode === 'edit') {
     h += '<form class="card dform" id="dr-edit" style="padding:16px;animation:none" novalidate><span class="eyebrow" style="grid-column:1/-1">Edit details</span>'
       + '<div class="field" style="grid-column:1/-1"><label class="lbl" for="de-name">Name</label><input class="input" id="de-name" maxlength="80" value="' + esc(c.name) + '"></div>'
@@ -1451,7 +1451,7 @@ async function renderDrawer() {
       + '<div class="field"><label class="lbl" for="de-detox">Detox every</label><select class="select" id="de-detox">' + [20, 22, 25].concat([20, 22, 25].indexOf(c.detox_freq) < 0 ? [c.detox_freq] : []).map((k) => '<option value="' + k + '"' + (k === c.detox_freq ? ' selected' : '') + '>' + k + ' days</option>').join('') + '</select></div>'
       + '<div class="row" style="grid-column:1/-1"><button class="btn" type="submit">Save changes</button><button class="ghost" style="height:44px" type="button" data-dmode="" data-for="' + esc(c.id) + '">Cancel</button></div><div class="err" id="de-err" role="alert" hidden style="grid-column:1/-1"></div></form>';
   }
-  if (isCoach() && mode === 'reset') {
+  if (isStaff() && mode === 'reset') {
     h += S.dcred ? '<div class="cred"><strong>New password set for ' + esc(first(c.name)) + '.</strong><pre>' + esc(S.dcred) + '</pre><div class="row"><button class="btn" type="button" data-copy-dcred="1">Copy message</button><a class="ghost wa" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(S.dcred) + '">Send on WhatsApp</a><button class="ghost" style="height:44px" type="button" data-dmode="" data-for="' + esc(c.id) + '">Done</button></div><span class="small muted">They’re signed out on other devices. When they sign in, they’re asked if they want to change it.</span></div>'
       : '<div class="card" style="padding:16px;gap:12px;animation:none"><span class="eyebrow">Reset password</span><p class="small">Sets a new temporary password for @' + esc(pr.username || '') + ' and signs them out everywhere. Next time they sign in, they’re asked if they want to change it.</p><div class="row"><button class="btn" type="button" data-reset-go="' + esc(c.id) + '">Set a new password</button><button class="ghost" style="height:44px" type="button" data-dmode="" data-for="' + esc(c.id) + '">Cancel</button></div></div>';
   }
@@ -1515,11 +1515,11 @@ async function renderDrawer() {
 const lqRow = (r) => '<div class="lq-row"><input class="input" maxlength="60" placeholder="Liquid, e.g. Jeera water" aria-label="Liquid" value="' + esc(r[0]) + '"><input class="input" maxlength="60" placeholder="When, e.g. Before breakfast" aria-label="When to take it" value="' + esc(r[1]) + '"><button class="x" type="button" data-lq-rm="1" aria-label="Remove this liquid"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path class="ic" d="M6 6l12 12M18 6L6 18"/></svg></button></div>';
 function liquidsCard(c) {
   const L = liqOf(c), T = S.ticks[c.id] || {};
-  if (isCoach() && S.drawerMode === 'liquids') {
+  if (isStaff() && S.drawerMode === 'liquids') {
     const rows = L.length ? L.map((x) => [x.name, x.when_text]) : [['', ''], ['', '']];
     return '<form class="card" id="lq-edit" style="padding:18px;gap:12px;animation:none" novalidate><span class="eyebrow">Daily liquids for ' + esc(first(c.name)) + '</span><span class="small muted">They see this as a checklist every day and tick each one off.</span><div id="lq-rows" style="display:flex;flex-direction:column;gap:8px">' + rows.map(lqRow).join('') + '</div><button class="ghost" type="button" id="lq-add" style="align-self:flex-start">Add another</button><div class="err" id="lq-err" role="alert" hidden></div><div class="row"><button class="btn" type="submit">Save list</button><button class="ghost" style="height:44px" type="button" data-dmode="" data-for="' + esc(c.id) + '">Cancel</button></div></form>';
   }
-  return '<div class="card" style="padding:18px;gap:6px;animation:none"><div class="card-h"><span class="eyebrow">Daily liquids' + (L.length ? ' · ' + liqDone(c) + ' of ' + L.length + ' taken today' : '') + '</span>' + (isCoach() ? '<button class="ghost" type="button" data-dmode="liquids" data-for="' + esc(c.id) + '">' + (L.length ? 'Edit list' : 'Add liquids') + '</button>' : '') + '</div>'
+  return '<div class="card" style="padding:18px;gap:6px;animation:none"><div class="card-h"><span class="eyebrow">Daily liquids' + (L.length ? ' · ' + liqDone(c) + ' of ' + L.length + ' taken today' : '') + '</span>' + (isStaff() ? '<button class="ghost" type="button" data-dmode="liquids" data-for="' + esc(c.id) + '">' + (L.length ? 'Edit list' : 'Add liquids') + '</button>' : '') + '</div>'
     + (L.length ? L.map((x) => '<div class="lq-view' + (T[x.id] ? ' on' : '') + '"><span class="lq-box">' + TICK + '</span><span><strong>' + esc(x.name) + '</strong>' + (x.when_text ? ' <span class="small muted">' + esc(x.when_text) + '</span>' : '') + '</span></div>').join('') + (c.liquids_updated ? '<span class="small muted" style="padding-top:6px">List last updated ' + fmtShort(c.liquids_updated) + '</span>' : '')
       : '<span class="small muted">No liquids list yet.</span>') + '</div>';
 }
@@ -1887,7 +1887,7 @@ document.addEventListener('click', (e) => {
   if (t.dataset.sbt != null) { S.sbtOpen = S.sbtOpen === S.drawer ? null : S.drawer; renderDrawer(); return; }
   // the assistant may edit details, renew, and delete clients; everything below is coach only
   const staffOk = t.dataset.dmode === 'edit' || t.dataset.renew != null || t.dataset.rm != null || t.dataset.rmNo != null || t.dataset.rmYes != null || t.dataset.editPlan != null;
-  if (!isCoach() && !staffOk) return;
+  // the team (coach and assistant) can use everything below
   // coach only
   if (t.dataset.dmode != null && t.dataset.for) { S.drawerMode = t.dataset.dmode || null; S.dcred = null; S.rmConfirm = null; renderDrawer(); return; }
   if (t.dataset.resetGo) {
